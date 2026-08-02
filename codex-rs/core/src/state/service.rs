@@ -42,6 +42,8 @@ use codex_thread_store::ThreadStore;
 use tokio::runtime::Handle;
 use tokio::sync::Mutex;
 
+use crate::vision::VisionCache;
+
 pub(crate) struct SessionServices {
     /// The single owner of live MCP connections for this thread.
     pub(crate) mcp_runtime: Arc<McpRuntime>,
@@ -89,6 +91,7 @@ pub(crate) struct SessionServices {
     pub(crate) time_provider: Arc<dyn TimeProvider>,
     /// Session-scoped model client shared across turns.
     pub(crate) model_client: ModelClient,
+    pub(crate) vision_cache: Mutex<VisionCache>,
     pub(crate) executed_tool_calls: Option<Arc<ExecutedToolCallRecorder>>,
     pub(crate) code_mode_service: CodeModeService,
     pub(crate) tool_search_handler_cache: ToolSearchHandlerCache,

@@ -82,7 +82,7 @@ pub(crate) fn migration_copy_for_models(
     }
 
     let heading_text = Span::from(format!(
-        "Codex just got an upgrade. Introducing {target_display_name}."
+        "DCode just got an upgrade. Introducing {target_display_name}."
     ))
     .bold();
     let description_line: Line<'static>;
@@ -152,7 +152,7 @@ pub(crate) async fn run_model_migration_prompt(
         if let Some(event) = events.next().await {
             match event {
                 TuiEvent::Key(key_event) => screen.handle_key(key_event),
-                TuiEvent::Paste(_) => {}
+                TuiEvent::Paste(_) | TuiEvent::Mouse(_) => {}
                 TuiEvent::Draw | TuiEvent::Resize => {
                     let _ = alt.tui.draw(u16::MAX, |frame| {
                         frame.render_widget_ref(&screen, frame.area());
@@ -341,7 +341,7 @@ impl ModelMigrationScreen {
     fn render_menu(&self, column: &mut ColumnRenderable) {
         column.push(Line::from(""));
         column.push(
-            Paragraph::new("Choose how you'd like Codex to proceed.")
+            Paragraph::new("Choose how you'd like DCode to proceed.")
                 .wrap(Wrap { trim: false })
                 .inset(Insets::tlbr(
                     /*top*/ 0, /*left*/ 2, /*bottom*/ 0, /*right*/ 0,

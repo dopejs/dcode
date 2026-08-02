@@ -1,6 +1,7 @@
 mod amazon_bedrock;
 mod auth;
 mod bearer_auth_provider;
+mod deepseek;
 mod models_endpoint;
 mod provider;
 
@@ -15,12 +16,20 @@ pub use bearer_auth_provider::BearerAuthProvider;
 pub use bearer_auth_provider::BearerAuthProvider as CoreAuthProvider;
 pub use codex_model_provider_info::AMAZON_BEDROCK_PROVIDER_ID;
 pub use codex_model_provider_info::CHATGPT_CODEX_BASE_URL;
+pub use codex_model_provider_info::DEEPSEEK_DEFAULT_MODEL;
+pub use codex_model_provider_info::DEEPSEEK_PROVIDER_ID;
 pub use codex_protocol::account::ProviderAccount;
+pub use deepseek::DeepSeekAuthStorageConfig;
+pub use deepseek::get_deepseek_balance_with_api_key;
+pub use deepseek::get_deepseek_balance_with_stored_auth;
+pub use deepseek::validate_deepseek_api_key;
 pub use provider::ModelProvider;
 pub use provider::ModelProviderFuture;
 pub use provider::ProviderAccountError;
 pub use provider::ProviderAccountResult;
 pub use provider::ProviderAccountState;
+pub use provider::ProviderBalance;
+pub use provider::ProviderBalanceInfo;
 pub use provider::ProviderCapabilities;
 pub use provider::SharedModelProvider;
 pub use provider::create_model_provider;

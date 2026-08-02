@@ -13,10 +13,10 @@ codex_rust_crate(
 )
 
 multiplatform_binaries(
-    name = "codex",
+    name = "dcode",
 )
 
 codex_e2e_benchmark(
-    name = "codex-help",
-    binaries = [":codex"],
+    name = "dcode-help",
+    binaries = [":dcode"],
 )

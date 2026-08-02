@@ -230,7 +230,7 @@ fn windows_desktop_app_launch_script(url: &str) -> String {
 $ErrorActionPreference = 'Stop'
 $url = {url}
 
-$package = Get-AppxPackage -Name OpenAI.Codex -ErrorAction SilentlyContinue
+$package = Get-AppxPackage -Name OpenAI.DCode -ErrorAction SilentlyContinue
 if ($null -eq $package) {{
     Write-Error 'Desktop app package is not installed'
     exit 1
@@ -245,7 +245,7 @@ $application = $manifest.Package.Applications.Application |
     }} |
     Select-Object -First 1
 if ($null -eq $application -or [string]::IsNullOrWhiteSpace($application.Executable)) {{
-    Write-Error 'Desktop app package does not declare a codex protocol executable'
+    Write-Error 'Desktop app package does not declare a dcode protocol executable'
     exit 1
 }}
 

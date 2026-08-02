@@ -144,6 +144,32 @@ pub struct OrchestratorFeatureToml {
     pub enabled: Option<bool>,
 }
 
+/// Controls how image inputs are handled when the selected primary model is text-only.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum VisionMode {
+    /// Use the configured vision model when available, otherwise describe the limitation to the
+    /// primary model without claiming that image pixels were inspected.
+    #[default]
+    Auto,
+    /// Fail the turn if the configured vision model cannot inspect the image.
+    Required,
+    /// Never send images to a secondary model.
+    Disabled,
+}
+
+/// Optional multimodal model used to turn image inputs into bounded text observations.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct VisionConfigToml {
+    #[serde(default)]
+    pub mode: VisionMode,
+    /// Provider key from the top-level `model_providers` map.
+    pub model_provider: Option<String>,
+    /// Multimodal model slug exposed by `model_provider`.
+    pub model: Option<String>,
+}
+
 /// Base config deserialized from ~/.codex/config.toml.
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, JsonSchema)]
 #[schemars(deny_unknown_fields)]
@@ -155,6 +181,9 @@ pub struct ConfigToml {
 
     /// Provider to use from the model_providers map.
     pub model_provider: Option<String>,
+
+    /// Optional multimodal proxy for image inputs sent to a text-only primary model.
+    pub vision: Option<VisionConfigToml>,
 
     /// Size of the context window for the model, in tokens.
     pub model_context_window: Option<i64>,
@@ -1038,6 +1067,27 @@ command = "   "
             err.to_string().contains(
                 "model_providers.amazon-bedrock: provider auth.command must not be empty"
             )
+        );
+    }
+
+    #[test]
+    fn legacy_deepseek_provider_config_remains_loadable() {
+        let config = toml::from_str::<ConfigToml>(
+            r#"
+model_provider = "deepseek"
+
+[model_providers.deepseek]
+name = "DeepSeek"
+base_url = "https://api.deepseek.com"
+env_key = "DEEPSEEK_API_KEY"
+wire_api = "responses"
+"#,
+        )
+        .expect("legacy DeepSeek provider config should remain loadable");
+
+        assert_eq!(
+            config.model_providers["deepseek"].base_url.as_deref(),
+            Some("https://api.deepseek.com")
         );
     }
 }

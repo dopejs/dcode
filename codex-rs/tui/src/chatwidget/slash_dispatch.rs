@@ -182,7 +182,7 @@ impl ChatWidget {
                 self.bottom_pane.show_selection_view(SelectionViewParams {
                     title: Some("Archive this session?".to_string()),
                     subtitle: Some(
-                        "Are you sure? This will archive the current session and exit Codex"
+                        "Are you sure? This will archive the current session and exit DCode"
                             .to_string(),
                     ),
                     footer_hint: Some(standard_popup_hint_line()),
@@ -389,6 +389,9 @@ impl ChatWidget {
             }
             SlashCommand::Memories => {
                 self.open_memories_popup();
+            }
+            SlashCommand::Login => {
+                self.open_deepseek_login();
             }
             SlashCommand::Quit | SlashCommand::Exit => {
                 self.request_quit_without_confirmation();
@@ -1116,6 +1119,7 @@ impl ChatWidget {
             | SlashCommand::Memories
             | SlashCommand::Quit
             | SlashCommand::Exit
+            | SlashCommand::Login
             | SlashCommand::Logout
             | SlashCommand::Mention
             | SlashCommand::Skills

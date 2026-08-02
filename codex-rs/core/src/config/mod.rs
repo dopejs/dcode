@@ -641,6 +641,9 @@ pub struct Config {
     /// Info needed to make an API request to the model.
     pub model_provider: ModelProviderInfo,
 
+    /// Optional multimodal proxy used when the primary model cannot inspect images.
+    pub vision: Option<codex_config::config_toml::VisionConfigToml>,
+
     /// Optionally specify the personality of the model
     pub personality: Option<Personality>,
 
@@ -3671,6 +3674,30 @@ impl Config {
             })?
             .clone();
 
+        let vision = cfg.vision.clone();
+        if let Some(vision) = vision.as_ref()
+            && vision.mode != codex_config::config_toml::VisionMode::Disabled
+        {
+            let vision_provider_id = vision.model_provider.as_deref().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "vision.model_provider is required unless vision.mode is disabled",
+                )
+            })?;
+            if !model_providers.contains_key(vision_provider_id) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("Vision model provider `{vision_provider_id}` not found"),
+                ));
+            }
+            if vision.model.as_deref().is_none_or(str::is_empty) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "vision.model is required unless vision.mode is disabled",
+                ));
+            }
+        }
+
         let shell_environment_policy = cfg.shell_environment_policy.into();
         let allow_login_shell = cfg.allow_login_shell.unwrap_or(true);
 
@@ -4018,6 +4045,7 @@ impl Config {
                 .unwrap_or_default(),
             model_provider_id,
             model_provider,
+            vision,
             cwd: resolved_cwd,
             workspace_roots: workspace_roots.clone(),
             workspace_roots_explicit,

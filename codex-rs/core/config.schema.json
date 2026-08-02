@@ -4729,6 +4729,55 @@
       ],
       "type": "string"
     },
+    "VisionConfigToml": {
+      "additionalProperties": false,
+      "description": "Optional multimodal model used to turn image inputs into bounded text observations.",
+      "properties": {
+        "mode": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/VisionMode"
+            }
+          ],
+          "default": "auto"
+        },
+        "model": {
+          "description": "Multimodal model slug exposed by `model_provider`.",
+          "type": "string"
+        },
+        "model_provider": {
+          "description": "Provider key from the top-level `model_providers` map.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "VisionMode": {
+      "description": "Controls how image inputs are handled when the selected primary model is text-only.",
+      "oneOf": [
+        {
+          "description": "Use the configured vision model when available, otherwise describe the limitation to the primary model without claiming that image pixels were inspected.",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Fail the turn if the configured vision model cannot inspect the image.",
+          "enum": [
+            "required"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Never send images to a secondary model.",
+          "enum": [
+            "disabled"
+          ],
+          "type": "string"
+        }
+      ]
+    },
     "WebSearchContextSize": {
       "enum": [
         "low",
@@ -5754,6 +5803,14 @@
         }
       ],
       "description": "Collection of settings that are specific to the TUI."
+    },
+    "vision": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/VisionConfigToml"
+        }
+      ],
+      "description": "Optional multimodal proxy for image inputs sent to a text-only primary model."
     },
     "web_search": {
       "allOf": [

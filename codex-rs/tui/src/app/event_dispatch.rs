@@ -431,6 +431,19 @@ impl App {
                         .add_error_message(format!("Logout failed: {err}"));
                 }
             },
+            AppEvent::DeepSeekLogin { api_key } => {
+                self.chat_widget
+                    .add_info_message("Validating DeepSeek API key…".to_string(), None);
+                self.login_to_deepseek(app_server, api_key);
+            }
+            AppEvent::DeepSeekLoginFinished { result } => match result {
+                Ok(balance) => {
+                    self.chat_widget.set_deepseek_balance(Ok(balance));
+                    self.chat_widget
+                        .add_info_message("Successfully logged in to DeepSeek.".to_string(), None);
+                }
+                Err(err) => self.chat_widget.add_error_message(err),
+            },
             AppEvent::FatalExitRequest(message) => {
                 return Ok(AppRunControl::Exit(ExitReason::Fatal(message)));
             }
@@ -871,6 +884,11 @@ impl App {
             }
             AppEvent::RefreshStatusLineWorkspaceHeadline { request_id } => {
                 self.refresh_status_line_workspace_headline(app_server, request_id);
+            }
+            AppEvent::DeepSeekBalanceUpdated { request_id, result } => {
+                if self.deepseek_balance_refresh.finish(request_id) {
+                    self.chat_widget.set_deepseek_balance(result);
+                }
             }
             AppEvent::OpenThreadGoalMenu { thread_id } => {
                 self.open_thread_goal_menu(app_server, thread_id).await;
@@ -1626,7 +1644,7 @@ impl App {
                                     Line::from(vec!["• ".dim(), "Sandbox ready".into()]),
                                     Line::from(vec![
                                         "  ".into(),
-                                        "Codex can now safely edit files and execute commands in your computer"
+                                        "DCode can now safely edit files and execute commands in your computer"
                                             .dark_gray(),
                                     ]),
                                 ]);
@@ -1659,7 +1677,7 @@ impl App {
                                     Line::from(vec!["• ".dim(), "Sandbox ready".into()]),
                                     Line::from(vec![
                                         "  ".into(),
-                                        "Codex can now safely edit files and execute commands in your computer"
+                                        "DCode can now safely edit files and execute commands in your computer"
                                             .dark_gray(),
                                     ]),
                                 ]);

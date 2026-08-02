@@ -23,7 +23,24 @@ use crate::auth::ResolvedProviderAuth;
 use crate::auth::auth_manager_for_provider;
 use crate::auth::resolve_provider_auth;
 use crate::auth::resolve_provider_auth_for_scope;
+use crate::deepseek::DeepSeekModelProvider;
 use crate::models_endpoint::OpenAiModelsEndpoint;
+
+/// Provider-reported API billing balance.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct ProviderBalance {
+    pub is_available: bool,
+    pub balance_infos: Vec<ProviderBalanceInfo>,
+}
+
+/// One currency component in a provider billing balance.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct ProviderBalanceInfo {
+    pub currency: String,
+    pub total_balance: String,
+    pub granted_balance: String,
+    pub topped_up_balance: String,
+}
 
 /// Optional provider-backed features that Codex may expose at runtime.
 ///
@@ -147,6 +164,14 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
     /// Returns the current app-visible account state for this provider.
     fn account_state(&self) -> ProviderAccountResult;
 
+    /// Fetches provider billing balance when the backend exposes it.
+    fn account_balance(
+        &self,
+        _http_client_factory: codex_http_client::HttpClientFactory,
+    ) -> ModelProviderFuture<'_, codex_protocol::error::Result<Option<ProviderBalance>>> {
+        Box::pin(async { Ok(None) })
+    }
+
     /// Maps an API client error into the provider's user-facing error representation.
     fn map_api_error(&self, error: ApiError) -> CodexErr {
         codex_api::map_api_error(error)
@@ -235,6 +260,8 @@ pub fn create_model_provider(
 ) -> SharedModelProvider {
     if provider_info.is_amazon_bedrock() {
         Arc::new(AmazonBedrockModelProvider::new(provider_info, auth_manager))
+    } else if provider_info.is_deepseek() {
+        Arc::new(DeepSeekModelProvider::new(provider_info, auth_manager))
     } else {
         Arc::new(ConfiguredModelProvider::new(provider_info, auth_manager))
     }
@@ -503,6 +530,16 @@ mod tests {
             ModelProviderInfo::create_openai_provider(/*base_url*/ None),
             /*auth_manager*/ None,
         );
+
+        assert_eq!(provider.capabilities(), ProviderCapabilities::default());
+    }
+
+    #[test]
+    fn custom_provider_named_deepseek_is_not_treated_as_builtin() {
+        let mut provider_info = provider_for("https://example.com".to_string());
+        provider_info.name = "DeepSeek".to_string();
+
+        let provider = create_model_provider(provider_info, /*auth_manager*/ None);
 
         assert_eq!(provider.capabilities(), ProviderCapabilities::default());
     }

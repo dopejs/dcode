@@ -1,0 +1,201 @@
+name: dcode-release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "dcode-v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dcode-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Validate release tag
+        id: release-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' codex-rs/Cargo.toml | head -1)"
+          [[ "$cargo_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            [[ "${GITHUB_REF_NAME}" =~ ^dcode-v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]
+            tag_version="${GITHUB_REF_NAME#dcode-v}"
+            [[ "$tag_version" == "$cargo_version" ]] || {
+              echo "Tag version $tag_version does not match codex-rs/Cargo.toml $cargo_version" >&2
+              exit 1
+            }
+          fi
+          echo "version=$cargo_version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: validate-tag
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: x86_64-apple-darwin
+          - runner: macos-14
+            target: aarch64-apple-darwin
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install Linux build dependencies
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libcap-dev pkg-config
+      - name: Configure MSVC environment
+        if: ${{ runner.os == 'Windows' }}
+        uses: ./.github/actions/setup-msvc-env
+        with:
+          target: ${{ matrix.target }}
+      - name: Configure rusty_v8 artifacts
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: ${{ matrix.target }}
+      - name: Build Linux bwrap and export its digest
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        working-directory: codex-rs
+        run: |
+          set -euo pipefail
+          target="${{ matrix.target }}"
+          cargo build --locked --release --target "$target" --bin bwrap
+          bwrap="target/$target/release/bwrap"
+          strip --strip-debug --strip-unneeded "$bwrap"
+          digest="$(sha256sum "$bwrap" | awk '{print $1}')"
+          echo "CODEX_BWRAP_SHA256=$digest" >> "$GITHUB_ENV"
+      - name: Build package binaries
+        shell: bash
+        working-directory: codex-rs
+        run: |
+          set -euo pipefail
+          target="${{ matrix.target }}"
+          args=(--locked --release --target "$target" --bin dcode --bin codex-code-mode-host)
+          if [[ "$target" == *-pc-windows-msvc ]]; then
+            args+=(--bin codex-command-runner --bin codex-windows-sandbox-setup)
+            export LIBSQLITE3_FLAGS=SQLITE_DISABLE_INTRINSIC
+          fi
+          cargo build "${args[@]}"
+      - name: Ad-hoc sign macOS executables
+        if: ${{ runner.os == 'macOS' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_dir="codex-rs/target/${{ matrix.target }}/release"
+          codesign --force --sign - "$release_dir/dcode"
+          codesign --force --sign - "$release_dir/codex-code-mode-host"
+      - name: Build canonical dcode package
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${{ matrix.target }}"
+          release_dir="codex-rs/target/$target/release"
+          output_dir="release-artifacts"
+          exe_suffix=""
+          if [[ "$target" == *-windows-* ]]; then
+            exe_suffix=".exe"
+          fi
+          args=(
+            --target "$target"
+            --variant dcode
+            --package-dir "$RUNNER_TEMP/dcode-package-$target"
+            --archive-output "$output_dir/dcode-package-$target.tar.gz"
+            --entrypoint-bin "$release_dir/dcode$exe_suffix"
+            --code-mode-host-bin "$release_dir/codex-code-mode-host$exe_suffix"
+          )
+          if [[ "$target" == *-linux-* ]]; then
+            args+=(--bwrap-bin "$release_dir/bwrap")
+          elif [[ "$target" == *-windows-* ]]; then
+            args+=(
+              --codex-command-runner-bin "$release_dir/codex-command-runner.exe"
+              --codex-windows-sandbox-setup-bin "$release_dir/codex-windows-sandbox-setup.exe"
+            )
+          fi
+          python3 scripts/build_codex_package.py "${args[@]}"
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: dcode-package-${{ matrix.target }}
+          path: release-artifacts/dcode-package-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  bundle:
+    needs:
+      - validate-tag
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: dcode-package-*
+          path: release-dist
+          merge-multiple: true
+      - name: Build checksum manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-dist
+          sha256sum dcode-package-*.tar.gz > dcode_SHA256SUMS
+          cp ../scripts/install-dcode.sh .
+          cp ../scripts/install-dcode.ps1 .
+      - name: Upload complete release bundle
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: dcode-release-${{ needs.validate-tag.outputs.version }}
+          path: release-dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/dcode-v') }}
+    needs:
+      - validate-tag
+      - bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dcode-release-${{ needs.validate-tag.outputs.version }}
+          path: release-dist
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: DCode ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release-dist/*

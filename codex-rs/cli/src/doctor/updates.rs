@@ -1,4 +1,4 @@
-//! Diagnoses whether Codex update paths target the running installation.
+//! Diagnoses whether DCode update paths target the running installation.
 //!
 //! Update diagnostics combine cached version metadata, install-channel hints,
 //! and bounded latest-version probes. For npm-managed launches, this module also
@@ -22,7 +22,7 @@ use super::npm_global_root_check;
 use super::run_command;
 
 const VERSION_FILE_NAME: &str = "version.json";
-const GITHUB_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
+const GITHUB_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/dopejs/dcode/releases/latest";
 const HOMEBREW_CASK_API_URL: &str = "https://formulae.brew.sh/api/cask/codex.json";
 
 /// Builds the update-health row for the current installation.
@@ -73,7 +73,7 @@ pub(super) fn updates_check(config: &Config) -> DoctorCheck {
                 status = status.max(CheckStatus::Warning);
                 summary = "npm update target could not be proven".to_string();
                 remediation = Some(
-                    "Reinstall or update Codex so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
+                    "Reinstall or update DCode so the JS shim provides CODEX_MANAGED_PACKAGE_ROOT."
                         .to_string(),
                 );
             }
@@ -158,10 +158,14 @@ fn fetch_latest_github_release_version() -> Result<String, String> {
     }
 
     let info = http_get_json::<ReleaseInfo>(GITHUB_LATEST_RELEASE_URL)?;
-    info.tag_name
-        .strip_prefix("rust-v")
+    parse_release_tag(&info.tag_name)
+}
+
+fn parse_release_tag(tag_name: &str) -> Result<String, String> {
+    tag_name
+        .strip_prefix("dcode-v")
         .map(str::to_string)
-        .ok_or_else(|| format!("failed to parse latest tag {}", info.tag_name))
+        .ok_or_else(|| format!("failed to parse latest tag {tag_name}"))
 }
 
 fn fetch_homebrew_cask_version() -> Result<String, String> {
@@ -214,6 +218,15 @@ mod tests {
         assert_eq!(is_newer("1.2.4", "1.2.3"), Some(true));
         assert_eq!(is_newer("1.2.3", "1.2.4"), Some(false));
         assert_eq!(is_newer("1.2.3-beta.1", "1.2.2"), None);
+    }
+
+    #[test]
+    fn parses_dcode_release_tags() {
+        assert_eq!(parse_release_tag("dcode-v1.2.3"), Ok("1.2.3".to_string()));
+        assert_eq!(
+            parse_release_tag("rust-v1.2.3"),
+            Err("failed to parse latest tag rust-v1.2.3".to_string())
+        );
     }
 
     #[test]

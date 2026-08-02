@@ -35,6 +35,7 @@ use codex_app_server_protocol::ThreadGoalStatus;
 use codex_connectors::AppInfo;
 use codex_file_search::FileMatch;
 use codex_message_history::HistoryBatchCursor;
+use codex_model_provider::ProviderBalance;
 use codex_protocol::ThreadId;
 use codex_protocol::openai_models::ModelPreset;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -176,6 +177,24 @@ pub(crate) enum KeymapEditIntent {
     ReplaceOne { old_key: String },
 }
 
+pub(crate) struct SensitiveApiKey(String);
+
+impl SensitiveApiKey {
+    pub(crate) fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    pub(crate) fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+impl std::fmt::Debug for SensitiveApiKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("SensitiveApiKey(***)")
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub(crate) enum AppEvent {
@@ -309,6 +328,16 @@ pub(crate) enum AppEvent {
 
     /// Request app-server account logout, then exit after it succeeds.
     Logout,
+
+    /// Validate and persist a DeepSeek API key without exposing it in event debug output.
+    DeepSeekLogin {
+        api_key: SensitiveApiKey,
+    },
+
+    /// Result of a DeepSeek API key login initiated from the TUI.
+    DeepSeekLoginFinished {
+        result: Result<ProviderBalance, String>,
+    },
 
     /// Request to exit the application due to a fatal error.
     #[allow(dead_code)]
@@ -464,7 +493,7 @@ pub(crate) enum AppEvent {
         url: String,
     },
 
-    /// Open the current thread in Codex Desktop.
+    /// Open the current thread in DCode Desktop.
     OpenDesktopThread {
         thread_id: ThreadId,
     },
@@ -1072,6 +1101,11 @@ pub(crate) enum AppEvent {
         request_id: u64,
         result: Result<crate::workspace_messages::WorkspaceHeadlineFetchResult, String>,
     },
+    /// Async update of the DeepSeek API balance shown in the status line.
+    DeepSeekBalanceUpdated {
+        request_id: u64,
+        result: Result<ProviderBalance, String>,
+    },
     /// Apply a user-confirmed status-line item ordering/selection.
     StatusLineSetup {
         items: Vec<StatusLineItem>,
@@ -1135,6 +1169,10 @@ pub(crate) enum AppEvent {
         action: String,
     },
 }
+
+#[cfg(test)]
+#[path = "app_event_tests.rs"]
+mod tests;
 
 /// Named profile selection to apply after any required UI guardrails complete.
 #[derive(Debug, Clone)]

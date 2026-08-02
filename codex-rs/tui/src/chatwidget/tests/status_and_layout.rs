@@ -375,14 +375,14 @@ async fn completed_plan_table_tail_skips_provisional_history_insert() {
     );
     controller.push("| Step | Owner |\n");
     controller.push("| --- | --- |\n");
-    controller.push("| Verify | Codex |\n");
+    controller.push("| Verify | DCode |\n");
     assert!(
         controller.has_live_tail(),
         "expected plan table holdback to leave a live tail",
     );
     chat.plan_stream_controller = Some(controller);
     chat.transcript.plan_delta_buffer =
-        "| Step | Owner |\n| --- | --- |\n| Verify | Codex |\n".to_string();
+        "| Step | Owner |\n| --- | --- |\n| Verify | DCode |\n".to_string();
 
     while rx.try_recv().is_ok() {}
 
@@ -600,6 +600,58 @@ async fn status_line_uses_secondary_fallback_for_unsupported_window() {
     assert_eq!(
         chat.status_line_value_for_item(crate::bottom_pane::StatusLineItem::WeeklyLimit),
         Some("secondary usage 50% left".to_string())
+    );
+}
+
+#[tokio::test]
+async fn deepseek_status_line_defaults_to_total_api_balance() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config.model_provider =
+        codex_model_provider_info::ModelProviderInfo::create_deepseek_provider();
+    chat.set_model(codex_model_provider_info::DEEPSEEK_DEFAULT_MODEL);
+    chat.set_deepseek_balance(Ok(codex_model_provider::ProviderBalance {
+        is_available: true,
+        balance_infos: vec![
+            codex_model_provider::ProviderBalanceInfo {
+                currency: "CNY".to_string(),
+                total_balance: "110.00".to_string(),
+                granted_balance: "10.00".to_string(),
+                topped_up_balance: "100.00".to_string(),
+            },
+            codex_model_provider::ProviderBalanceInfo {
+                currency: "USD".to_string(),
+                total_balance: "2.50".to_string(),
+                granted_balance: "0.00".to_string(),
+                topped_up_balance: "2.50".to_string(),
+            },
+        ],
+    }));
+
+    assert_eq!(
+        chat.status_line_value_for_item(crate::bottom_pane::StatusLineItem::ApiBalance),
+        Some("Balance CNY 110.00, USD 2.50".to_string())
+    );
+    assert_eq!(
+        chat.configured_status_line_items(),
+        vec![
+            "model-with-reasoning".to_string(),
+            "current-dir".to_string(),
+            "api-balance".to_string(),
+        ]
+    );
+
+    chat.show_welcome_banner = false;
+    chat.refresh_status_line();
+    let width = 80;
+    let height = chat.desired_height(width);
+    let mut terminal = ratatui::Terminal::new(TestBackend::new(width, height))
+        .expect("create DeepSeek balance terminal");
+    terminal
+        .draw(|frame| chat.render(frame.area(), frame.buffer_mut()))
+        .expect("draw DeepSeek balance footer");
+    assert_chatwidget_snapshot!(
+        "deepseek_status_line_api_balance",
+        normalized_backend_snapshot(terminal.backend())
     );
 }
 
@@ -962,18 +1014,18 @@ async fn rate_limit_snapshots_keep_separate_entries_per_limit_id() {
         rate_limit_reached_type: None,
     }));
 
-    let codex = chat
+    let dcode = chat
         .rate_limit_snapshots_by_limit_id
         .get("codex")
-        .expect("codex snapshot should exist");
+        .expect("dcode snapshot should exist");
     let other = chat
         .rate_limit_snapshots_by_limit_id
         .get("codex_other")
         .expect("codex_other snapshot should exist");
 
-    assert_eq!(codex.primary.as_ref().map(|w| w.used_percent), Some(20.0));
+    assert_eq!(dcode.primary.as_ref().map(|w| w.used_percent), Some(20.0));
     assert_eq!(
-        codex
+        dcode
             .credits
             .as_ref()
             .and_then(|credits| credits.balance.as_deref()),
@@ -1746,7 +1798,7 @@ async fn workspace_owner_limit_states_render_state_specific_messages() {
         (
             RateLimitReachedType::WorkspaceOwnerCreditsDepleted,
             RateLimitErrorKind::Generic,
-            "You're out of credits. Your workspace is out of credits. Add credits to continue using Codex.",
+            "You're out of credits. Your workspace is out of credits. Add credits to continue using DCode.",
         ),
         (
             RateLimitReachedType::WorkspaceOwnerUsageLimitReached,

@@ -950,7 +950,7 @@ pub async fn run_main(
     let codex_home = match find_codex_home() {
         Ok(codex_home) => codex_home.to_path_buf(),
         Err(err) => {
-            eprintln!("Error finding codex home: {err}");
+            eprintln!("Error finding dcode home: {err}");
             std::process::exit(1);
         }
     };
@@ -1519,7 +1519,7 @@ async fn run_ratatui_app(
             resume_hint: None,
             update_action: None,
             exit_reason: ExitReason::Fatal(format!(
-                "No saved session found with ID {id_str}. Run `codex {action}` without an ID to choose from existing sessions."
+                "No saved session found with ID {id_str}. Run `dcode {action}` without an ID to choose from existing sessions."
             )),
         })
     };
@@ -2087,7 +2087,7 @@ mod tests {
             id: thread_id,
             timestamp: meta_rfc3339.to_string(),
             cwd: cwd.to_path_buf(),
-            originator: "codex".to_string(),
+            originator: "dcode".to_string(),
             cli_version: "0.0.0".to_string(),
             source: codex_protocol::protocol::SessionSource::Cli,
             model_provider: Some(model_provider.to_string()),

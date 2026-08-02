@@ -23,7 +23,7 @@ use wiremock::matchers::method;
 use wiremock::matchers::path;
 
 fn codex_command(codex_home: &Path) -> Result<assert_cmd::Command> {
-    let mut cmd = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("codex")?);
+    let mut cmd = assert_cmd::Command::new(codex_utils_cargo_bin::cargo_bin("dcode")?);
     cmd.env("CODEX_HOME", codex_home);
     Ok(cmd)
 }
@@ -63,6 +63,99 @@ fn login_with_api_key_reads_stdin_and_writes_auth_json() -> Result<()> {
     assert!(auth.get("tokens").is_none());
     assert!(auth.get("agent_identity").is_none());
 
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn deepseek_login_validates_key_before_writing_auth_json() -> Result<()> {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/user/balance"))
+        .and(header("authorization", "Bearer sk-deepseek-test"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "is_available": true,
+            "balance_infos": [{
+                "currency": "USD",
+                "total_balance": "12.34",
+                "granted_balance": "0.00",
+                "topped_up_balance": "12.34"
+            }]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let codex_home = TempDir::new()?;
+    std::fs::write(
+        codex_home.path().join("config.toml"),
+        format!(
+            "cli_auth_credentials_store = \"file\"\nmodel_provider = \"deepseek\"\n\
+             [model_providers.deepseek]\nname = \"DeepSeek\"\nbase_url = \"{}\"\n\
+             env_key = \"DEEPSEEK_API_KEY\"\nenv_key_instructions = \
+             \"Create an API key at https://platform.deepseek.com/api_keys and export it as DEEPSEEK_API_KEY.\"\n",
+            server.uri()
+        ),
+    )?;
+
+    codex_command(codex_home.path())?
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .args(["login", "--with-api-key"])
+        .write_stdin("sk-deepseek-test\n")
+        .assert()
+        .success()
+        .stderr(contains("Validating DeepSeek API key..."))
+        .stderr(contains("Successfully logged in"));
+
+    let auth = read_auth_json(codex_home.path())?;
+    assert_eq!(auth["OPENAI_API_KEY"], "sk-deepseek-test");
+    server.verify().await;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn deepseek_login_does_not_replace_auth_when_validation_fails() -> Result<()> {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/user/balance"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+            "error": {"message": "Authentication Fails"}
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let codex_home = TempDir::new()?;
+    std::fs::write(
+        codex_home.path().join("config.toml"),
+        format!(
+            "cli_auth_credentials_store = \"file\"\nmodel_provider = \"deepseek\"\n\
+             [model_providers.deepseek]\nname = \"DeepSeek\"\nbase_url = \"{}\"\n\
+             env_key = \"DEEPSEEK_API_KEY\"\nenv_key_instructions = \
+             \"Create an API key at https://platform.deepseek.com/api_keys and export it as DEEPSEEK_API_KEY.\"\n",
+            server.uri()
+        ),
+    )?;
+    std::fs::write(
+        codex_home.path().join("auth.json"),
+        serde_json::to_vec_pretty(&json!({
+            "auth_mode": "apikey",
+            "OPENAI_API_KEY": "sk-existing"
+        }))?,
+    )?;
+
+    codex_command(codex_home.path())?
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("no_proxy", "127.0.0.1,localhost")
+        .args(["login", "--with-api-key"])
+        .write_stdin("sk-invalid\n")
+        .assert()
+        .failure()
+        .stderr(contains("Error validating DeepSeek API key"));
+
+    let auth = read_auth_json(codex_home.path())?;
+    assert_eq!(auth["OPENAI_API_KEY"], "sk-existing");
+    server.verify().await;
     Ok(())
 }
 

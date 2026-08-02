@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tempfile::TempDir;
 
 fn context_with_fragment(fragment: &str) -> (TempDir, InlineVisualizationContext) {
-    let codex_home = tempfile::tempdir().expect("temp codex home");
+    let codex_home = tempfile::tempdir().expect("temp dcode home");
     let thread_id = ThreadId::new();
     let context = InlineVisualizationContext::new(codex_home.path(), thread_id)
         .expect("UUIDv7 thread id should provide a timestamp");
@@ -24,7 +24,7 @@ fn context_with_fragment(fragment: &str) -> (TempDir, InlineVisualizationContext
 
 #[test]
 fn granted_visualization_root_overrides_thread_id_derived_root() {
-    let codex_home = tempfile::tempdir().expect("temp codex home");
+    let codex_home = tempfile::tempdir().expect("temp dcode home");
     let granted_context = InlineVisualizationContext::new(codex_home.path(), ThreadId::new())
         .expect("granted context");
     fs::create_dir_all(&granted_context.thread_dir).expect("create granted directory");
@@ -125,7 +125,7 @@ fn hides_incomplete_streaming_directive() {
 
 #[test]
 fn unavailable_artifact_has_explicit_fallback() {
-    let codex_home = tempfile::tempdir().expect("temp codex home");
+    let codex_home = tempfile::tempdir().expect("temp dcode home");
     let context = InlineVisualizationContext::new(codex_home.path(), ThreadId::new())
         .expect("UUIDv7 thread id should provide a timestamp");
 
@@ -278,7 +278,7 @@ fn finalized_agent_cell_replays_visualization_link() {
 
 #[test]
 fn transcript_overlay_remeasures_visualization_when_artifact_becomes_available() {
-    let codex_home = tempfile::tempdir().expect("temp codex home");
+    let codex_home = tempfile::tempdir().expect("temp dcode home");
     let context = InlineVisualizationContext::new(codex_home.path(), ThreadId::new())
         .expect("UUIDv7 thread id should provide a timestamp");
     fs::create_dir_all(&context.thread_dir).expect("create visualization directory");

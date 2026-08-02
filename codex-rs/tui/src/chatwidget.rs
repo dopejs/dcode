@@ -1,4 +1,4 @@
-//! The main Codex TUI chat surface.
+//! The main DCode TUI chat surface.
 //!
 //! `ChatWidget` consumes protocol events, builds and updates history cells, and drives rendering
 //! for both the main viewport and overlay UIs.
@@ -329,6 +329,7 @@ use crate::tui::FrameRequester;
 mod command_lifecycle;
 mod connectors;
 mod constructor;
+mod deepseek_login;
 use self::connectors::ConnectorsState;
 mod exec_state;
 use self::exec_state::RunningCommand;
@@ -745,6 +746,8 @@ pub(crate) struct ChatWidget {
     status_line_git_summary_lookup_complete: bool,
     // Cached workspace notification headline for the status line.
     status_line_workspace_headline: Option<String>,
+    // Latest DeepSeek account balance fetched for status-line rendering.
+    status_line_deepseek_balance: Option<codex_model_provider::ProviderBalance>,
     // Request ID for the async workspace headline fetch currently in flight.
     status_line_workspace_headline_pending_request_id: Option<u64>,
     // Request ID to assign to the next workspace headline fetch.

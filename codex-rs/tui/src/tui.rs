@@ -19,10 +19,13 @@ use crossterm::SynchronizedUpdate;
 use crossterm::cursor::SetCursorStyle;
 use crossterm::event::DisableBracketedPaste;
 use crossterm::event::DisableFocusChange;
+use crossterm::event::DisableMouseCapture;
 use crossterm::event::EnableBracketedPaste;
 #[cfg(not(windows))]
 use crossterm::event::EnableFocusChange;
+use crossterm::event::EnableMouseCapture;
 use crossterm::event::KeyEvent;
+use crossterm::event::MouseEvent;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::terminal::LeaveAlternateScreen;
 #[cfg(not(unix))]
@@ -302,6 +305,7 @@ fn restore_common(
     if let Err(err) = execute!(stdout(), DisableBracketedPaste) {
         first_error.get_or_insert(err);
     }
+    let _ = execute!(stdout(), DisableMouseCapture);
     let _ = execute!(stdout(), DisableFocusChange);
     if matches!(raw_mode_restore, RawModeRestore::Disable)
         && let Err(err) = disable_raw_mode()
@@ -344,7 +348,7 @@ pub(super) fn reapply_raw_mode_after_resume() -> Result<()> {
     enable_raw_mode()
 }
 
-/// Restore the terminal after Codex is exiting.
+/// Restore the terminal after DCode is exiting.
 ///
 /// Uses a stronger keyboard reset than `restore` so the parent shell recovers even if a
 /// terminal missed the stack pop that normally pairs with [`set_modes`].
@@ -548,6 +552,8 @@ pub enum TuiEvent {
     Key(KeyEvent),
     /// A bracketed paste payload normalized by the app layer before it reaches the composer.
     Paste(String),
+    /// A mouse event captured while the full-screen alternate buffer is active.
+    Mouse(MouseEvent),
     /// A terminal size notification that should be handled as resize-sensitive draw work.
     ///
     /// Resize is separate from `Draw` so the app can run feature-gated pre-render logic without
@@ -676,7 +682,7 @@ impl Tui {
     /// Temporarily restore terminal state to run an external interactive program `f`.
     ///
     /// This pauses crossterm's stdin polling by dropping the underlying event stream, restores
-    /// terminal modes and stderr while keeping raw mode enabled, then re-applies Codex TUI modes
+    /// terminal modes and stderr while keeping raw mode enabled, then re-applies DCode TUI modes
     /// and stderr suppression before resuming events.
     pub async fn with_restored<R, F, Fut>(&mut self, f: F) -> R
     where
@@ -771,6 +777,7 @@ impl Tui {
             return Ok(());
         }
         let _ = execute!(self.terminal.backend_mut(), EnterAlternateScreen);
+        let _ = execute!(self.terminal.backend_mut(), EnableMouseCapture);
         // Enable "alternate scroll" so terminals may translate wheel to arrows
         let _ = execute!(self.terminal.backend_mut(), EnableAlternateScroll);
         if let Ok(size) = self.terminal.size() {
@@ -793,6 +800,7 @@ impl Tui {
             return Ok(());
         }
         // Disable alternate scroll when leaving alt-screen
+        let _ = execute!(self.terminal.backend_mut(), DisableMouseCapture);
         let _ = execute!(self.terminal.backend_mut(), DisableAlternateScroll);
         let _ = execute!(self.terminal.backend_mut(), LeaveAlternateScreen);
         if let Some(saved) = self.alt_saved_viewport.take() {

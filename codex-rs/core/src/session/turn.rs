@@ -214,7 +214,7 @@ pub(crate) async fn run_turn(
     );
     let mut world_state = world_state?;
 
-    let Some((injection_items, explicitly_enabled_connectors)) = build_skills_and_plugins(
+    let Some((mut injection_items, explicitly_enabled_connectors)) = build_skills_and_plugins(
         &sess,
         first_step_context.as_ref(),
         &user_input,
@@ -232,6 +232,17 @@ pub(crate) async fn run_turn(
     let mut can_drain_pending_input = input.is_empty();
     if run_hooks_and_record_inputs(&sess, &turn_context, &input).await {
         return Ok(None);
+    }
+
+    if let Some(vision_observation) = crate::vision::prepare_vision_observation(
+        &sess,
+        &turn_context,
+        &user_input,
+        &cancellation_token,
+    )
+    .await?
+    {
+        injection_items.push(vision_observation);
     }
 
     sess.merge_connector_selection(explicitly_enabled_connectors.clone())
@@ -280,6 +291,21 @@ pub(crate) async fn run_turn(
 
         if run_hooks_and_record_inputs(&sess, &turn_context, &pending_input).await {
             break;
+        }
+        let pending_user_input = turn_user_input(&pending_input);
+        if let Some(vision_observation) = crate::vision::prepare_vision_observation(
+            &sess,
+            &turn_context,
+            &pending_user_input,
+            &cancellation_token,
+        )
+        .await?
+        {
+            sess.record_conversation_items(
+                &turn_context,
+                std::slice::from_ref(&vision_observation),
+            )
+            .await;
         }
 
         let window_id = sess.current_window_id().await;

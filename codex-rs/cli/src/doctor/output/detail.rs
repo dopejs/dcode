@@ -229,7 +229,7 @@ fn install_details(parsed: &[ParsedDetail], options: HumanOutputOptions) -> Vec<
         expected: None,
     });
 
-    let path_entries = numbered_values(parsed, "PATH codex #");
+    let path_entries = numbered_values(parsed, "PATH dcode #");
     if !path_entries.is_empty() {
         let total = path_entries.len();
         let shown = if options.show_all {
@@ -267,9 +267,9 @@ fn install_details(parsed: &[ParsedDetail], options: HumanOutputOptions) -> Vec<
             "managed by bun",
             "managed by pnpm",
             "managed package root",
-            "PATH codex entries",
+            "PATH dcode entries",
         ],
-        &["PATH codex #"],
+        &["PATH dcode #"],
     );
     out
 }

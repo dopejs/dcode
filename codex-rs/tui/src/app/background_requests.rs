@@ -13,6 +13,8 @@ use codex_app_server_protocol::AppsListParams;
 use codex_app_server_protocol::AppsListResponse;
 use codex_app_server_protocol::ConsumeAccountRateLimitResetCreditParams;
 use codex_app_server_protocol::ConsumeAccountRateLimitResetCreditResponse;
+use codex_app_server_protocol::LoginAccountParams;
+use codex_app_server_protocol::LoginAccountResponse;
 use codex_app_server_protocol::MarketplaceAddParams;
 use codex_app_server_protocol::MarketplaceAddResponse;
 use codex_app_server_protocol::MarketplaceRemoveParams;
@@ -33,6 +35,29 @@ const RATE_LIMIT_RESET_REQUEST_TIMEOUT: std::time::Duration =
     std::time::Duration::from_secs(/*secs*/ 15);
 const WORKSPACE_HEADLINE_FETCH_TIMEOUT: std::time::Duration =
     std::time::Duration::from_millis(/*millis*/ 2000);
+
+#[derive(Debug, Default)]
+pub(super) struct DeepSeekBalanceRefreshState {
+    next_request_id: u64,
+    pending_request_id: Option<u64>,
+}
+
+impl DeepSeekBalanceRefreshState {
+    fn begin(&mut self) -> u64 {
+        let request_id = self.next_request_id;
+        self.next_request_id = self.next_request_id.wrapping_add(/*rhs*/ 1);
+        self.pending_request_id = Some(request_id);
+        request_id
+    }
+
+    pub(super) fn finish(&mut self, request_id: u64) -> bool {
+        if self.pending_request_id != Some(request_id) {
+            return false;
+        }
+        self.pending_request_id = None;
+        true
+    }
+}
 
 impl App {
     pub(super) fn fetch_mcp_inventory(
@@ -174,6 +199,73 @@ impl App {
                     .map_err(|err| err.to_string())
             });
             app_event_tx.send(AppEvent::StatusLineWorkspaceHeadlineUpdated { request_id, result });
+        });
+    }
+
+    pub(super) fn refresh_deepseek_balance(&mut self) {
+        let config = self.config.clone();
+        let provider_info = config.model_provider.clone();
+        if !provider_info.is_deepseek() {
+            return;
+        }
+        let request_id = self.deepseek_balance_refresh.begin();
+        let http_client_factory = self.config.http_client_factory();
+        let app_event_tx = self.app_event_tx.clone();
+        tokio::spawn(async move {
+            let auth_storage = codex_model_provider::DeepSeekAuthStorageConfig {
+                codex_home: config.codex_home.to_path_buf(),
+                auth_credentials_store_mode: config.cli_auth_credentials_store_mode,
+                keyring_backend_kind: config.auth_keyring_backend_kind(),
+                chatgpt_base_url: Some(config.chatgpt_base_url.clone()),
+                auth_route_config: config.auth_route_config(),
+            };
+            let result = codex_model_provider::get_deepseek_balance_with_stored_auth(
+                &provider_info,
+                &auth_storage,
+                http_client_factory,
+            )
+            .await
+            .map_err(|err| err.to_string());
+            app_event_tx.send(AppEvent::DeepSeekBalanceUpdated { request_id, result });
+        });
+    }
+
+    pub(super) fn login_to_deepseek(
+        &mut self,
+        app_server: &AppServerSession,
+        api_key: crate::app_event::SensitiveApiKey,
+    ) {
+        let provider_info = self.config.model_provider.clone();
+        let http_client_factory = self.config.http_client_factory();
+        let request_handle = app_server.request_handle();
+        let app_event_tx = self.app_event_tx.clone();
+        tokio::spawn(async move {
+            let api_key = api_key.into_inner();
+            let result = async {
+                let balance = codex_model_provider::get_deepseek_balance_with_api_key(
+                    &provider_info,
+                    &api_key,
+                    http_client_factory,
+                )
+                .await
+                .map_err(|err| format!("DeepSeek API key validation failed: {err}"))?;
+                let request_id = RequestId::String(format!("deepseek-login-{}", Uuid::new_v4()));
+                match request_handle
+                    .request_typed::<LoginAccountResponse>(ClientRequest::LoginAccount {
+                        request_id,
+                        params: LoginAccountParams::ApiKey { api_key },
+                    })
+                    .await
+                    .map_err(|err| format!("Failed to save DeepSeek API key: {err}"))?
+                {
+                    LoginAccountResponse::ApiKey {} => Ok(balance),
+                    response => Err(format!(
+                        "Unexpected account/login/start response: {response:?}"
+                    )),
+                }
+            }
+            .await;
+            app_event_tx.send(AppEvent::DeepSeekLoginFinished { result });
         });
     }
 
@@ -959,13 +1051,13 @@ fn plugin_remote_section_error_next_step(label: &str, err: &str) -> &'static str
         || err.contains("plugin sharing is not enabled")
         || err.contains("feature disabled")
     {
-        "Ask a workspace admin to enable Codex plugins or plugin sharing."
+        "Ask a workspace admin to enable DCode plugins or plugin sharing."
     } else if err.contains("workspace") && (err.contains("access") || err.contains("mismatch")) {
         "Switch to the matching workspace or ask the sharer for access."
     } else if err.contains("not found") || err.contains("status 404") {
         "Check that you are signed in to the correct workspace and still have access."
     } else if err.contains("old build") || err.contains("update codex") || err.contains("stale") {
-        "Update Codex, then try opening the shared plugin again."
+        "Update DCode, then try opening the shared plugin again."
     } else if err.contains("service unavailable")
         || err.contains("temporarily unavailable")
         || err.contains("status 503")
@@ -987,7 +1079,7 @@ fn plugin_sharing_disabled_remote_section_error() -> PluginRemoteSectionError {
     PluginRemoteSectionError {
         section_id: "shared-with-me".to_string(),
         label: "Shared with me".to_string(),
-        message: "Plugin sharing is disabled for this Codex session. Enable plugin sharing to load shared plugins.".to_string(),
+        message: "Plugin sharing is disabled for this DCode session. Enable plugin sharing to load shared plugins.".to_string(),
     }
 }
 
@@ -1289,6 +1381,17 @@ mod tests {
     use codex_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
 
+    #[test]
+    fn deepseek_balance_refresh_rejects_out_of_order_results() {
+        let mut refresh = DeepSeekBalanceRefreshState::default();
+        let stale_request_id = refresh.begin();
+        let current_request_id = refresh.begin();
+
+        assert!(!refresh.finish(stale_request_id));
+        assert!(refresh.finish(current_request_id));
+        assert!(!refresh.finish(stale_request_id));
+    }
+
     fn test_absolute_path(path: &str) -> AbsolutePathBuf {
         AbsolutePathBuf::try_from(PathBuf::from(path)).expect("absolute test path")
     }
@@ -1398,7 +1501,7 @@ mod tests {
             (
                 "Shared with me",
                 "old build fallback",
-                "Update Codex, then try opening the shared plugin again.",
+                "Update DCode, then try opening the shared plugin again.",
             ),
             (
                 "Shared with me",
@@ -1413,7 +1516,7 @@ mod tests {
             (
                 "Shared with me",
                 "plugin sharing is not enabled",
-                "Ask a workspace admin to enable Codex plugins or plugin sharing.",
+                "Ask a workspace admin to enable DCode plugins or plugin sharing.",
             ),
         ];
 
@@ -1432,7 +1535,7 @@ mod tests {
             PluginRemoteSectionError {
                 section_id: "shared-with-me".to_string(),
                 label: "Shared with me".to_string(),
-                message: "Plugin sharing is disabled for this Codex session. Enable plugin sharing to load shared plugins.".to_string(),
+                message: "Plugin sharing is disabled for this DCode session. Enable plugin sharing to load shared plugins.".to_string(),
             }
         );
     }

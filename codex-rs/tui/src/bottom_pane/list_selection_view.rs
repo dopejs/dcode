@@ -1481,14 +1481,14 @@ mod tests {
         let items = vec![
             SelectionItem {
                 name: "Read Only".to_string(),
-                description: Some("Codex can read files".to_string()),
+                description: Some("DCode can read files".to_string()),
                 is_current: true,
                 dismiss_on_select: true,
                 ..Default::default()
             },
             SelectionItem {
                 name: "Full Access".to_string(),
-                description: Some("Codex can edit files".to_string()),
+                description: Some("DCode can edit files".to_string()),
                 is_current: false,
                 dismiss_on_select: true,
                 ..Default::default()
@@ -1597,7 +1597,7 @@ mod tests {
 
     #[test]
     fn renders_blank_line_between_subtitle_and_items() {
-        let view = make_selection_view(Some("Switch between Codex approval presets"));
+        let view = make_selection_view(Some("Switch between DCode approval presets"));
         assert_snapshot!("list_selection_spacing_with_subtitle", render_lines(&view));
     }
 
@@ -1680,7 +1680,7 @@ mod tests {
         let tx = AppEventSender::new(tx_raw);
         let items = vec![SelectionItem {
             name: "Read Only".to_string(),
-            description: Some("Codex can read files".to_string()),
+            description: Some("DCode can read files".to_string()),
             is_current: true,
             dismiss_on_select: true,
             ..Default::default()
@@ -1712,7 +1712,7 @@ mod tests {
         let tx = AppEventSender::new(tx_raw);
         let items = vec![SelectionItem {
             name: "Read Only".to_string(),
-            description: Some("Codex can read files".to_string()),
+            description: Some("DCode can read files".to_string()),
             is_current: false,
             dismiss_on_select: true,
             ..Default::default()

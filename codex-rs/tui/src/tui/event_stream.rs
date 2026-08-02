@@ -186,11 +186,11 @@ impl<S: EventSource + Default + Unpin> TuiEventStream<S> {
 
     /// Poll the shared crossterm stream for the next mapped `TuiEvent`.
     ///
-    /// This skips events we don't use (mouse events, etc.) and keeps polling until it yields
+    /// This skips events we don't use and keeps polling until it yields
     /// a mapped event, hits `Pending`, or sees EOF/error. When the broker is paused, it drops
     /// the underlying stream and returns `Pending` to fully release stdin.
     pub fn poll_crossterm_event(&mut self, cx: &mut Context<'_>) -> Poll<Option<TuiEvent>> {
-        // Some crossterm events map to None (e.g. FocusLost, mouse); loop so we keep polling
+        // Some crossterm events map to None (for example FocusLost); loop so we keep polling
         // until we return a mapped event, hit Pending, or see EOF/error.
         loop {
             let poll_result = {
@@ -247,7 +247,7 @@ impl<S: EventSource + Default + Unpin> TuiEventStream<S> {
         }
     }
 
-    /// Map a crossterm event to a [`TuiEvent`], skipping events we don't use (mouse events, etc.).
+    /// Map a crossterm event to a [`TuiEvent`], skipping unsupported terminal events.
     fn map_crossterm_event(&mut self, event: Event) -> Option<TuiEvent> {
         match event {
             Event::Key(key_event) => {
@@ -269,6 +269,7 @@ impl<S: EventSource + Default + Unpin> TuiEventStream<S> {
             }
             Event::Resize(_, _) => Some(TuiEvent::Resize),
             Event::Paste(pasted) => Some(TuiEvent::Paste(pasted)),
+            Event::Mouse(mouse_event) => Some(TuiEvent::Mouse(mouse_event)),
             Event::FocusGained => {
                 self.terminal_focused.store(true, Ordering::Relaxed);
                 // Keep the startup-cached palette: querying terminal colors here blocks the
@@ -279,7 +280,6 @@ impl<S: EventSource + Default + Unpin> TuiEventStream<S> {
                 self.terminal_focused.store(false, Ordering::Relaxed);
                 None
             }
-            _ => None,
         }
     }
 }
@@ -321,6 +321,8 @@ mod tests {
     use crossterm::event::KeyCode;
     use crossterm::event::KeyEvent;
     use crossterm::event::KeyModifiers;
+    use crossterm::event::MouseEvent;
+    use crossterm::event::MouseEventKind;
     use pretty_assertions::assert_eq;
     use std::task::Context;
     use std::task::Poll;
@@ -514,6 +516,25 @@ mod tests {
 
         let next = stream.next().await;
         assert!(matches!(next, Some(TuiEvent::Resize)));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn mouse_event_maps_to_mouse() {
+        let (broker, handle, _draw_tx, draw_rx, terminal_focused) = setup();
+        let mut stream = make_stream(broker, draw_rx, terminal_focused);
+        let expected = MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 12,
+            row: 8,
+            modifiers: KeyModifiers::NONE,
+        };
+
+        handle.send(Ok(Event::Mouse(expected)));
+
+        match stream.next().await {
+            Some(TuiEvent::Mouse(actual)) => assert_eq!(actual, expected),
+            other => panic!("expected mouse event, got {other:?}"),
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]

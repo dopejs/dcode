@@ -213,6 +213,7 @@ mod event_dispatch;
 mod history_ui;
 mod input;
 mod loaded_threads;
+mod mouse;
 mod pending_interactive_replay;
 mod pets;
 mod platform_actions;
@@ -587,6 +588,7 @@ pub(crate) struct App {
     pending_startup_thread_start: bool,
     /// Invalidates in-flight full rate-limit reads when a newer rolling hard stop arrives.
     rate_limit_hard_stop_generation: u64,
+    deepseek_balance_refresh: background_requests::DeepSeekBalanceRefreshState,
     // Serialize plugin enablement writes per plugin so stale completions cannot
     // overwrite a newer toggle, even if the plugin is toggled from different
     // cwd contexts.
@@ -704,7 +706,7 @@ fn session_start_error(
 fn archived_session_guidance(err: &color_eyre::eyre::Report) -> Option<String> {
     let err = err.to_string();
     let message = &err[err.find("session ")?..];
-    if !message.contains(" is archived. Run `codex unarchive ") {
+    if !message.contains(" is archived. Run `dcode unarchive ") {
         return None;
     }
     let message = message
@@ -1023,7 +1025,7 @@ impl App {
             color_eyre::eyre::eyre!(
                 "Invalid `tui.keymap` configuration: {err}\n\
 Fix the config and retry.\n\
-See the Codex keymap documentation for supported actions and examples."
+See the DCode keymap documentation for supported actions and examples."
             )
         })?;
         #[cfg(not(debug_assertions))]
@@ -1080,6 +1082,7 @@ See the Codex keymap documentation for supported actions and examples."
             pending_app_server_requests: PendingAppServerRequests::default(),
             pending_startup_thread_start,
             rate_limit_hard_stop_generation: 0,
+            deepseek_balance_refresh: Default::default(),
             pending_plugin_enabled_writes: HashMap::new(),
             pending_hook_enabled_writes: HashMap::new(),
         };
@@ -1146,6 +1149,7 @@ See the Codex keymap documentation for supported actions and examples."
             "tui startup initial frame scheduled"
         );
         app.refresh_startup_skills(&app_server);
+        app.refresh_deepseek_balance();
         // Kick off a non-blocking rate-limit prefetch so the first `/status`
         // already has data and available reset credits can be surfaced, without
         // delaying the initial frame render.
@@ -1307,6 +1311,9 @@ See the Codex keymap documentation for supported actions and examples."
                     // [iTerm2]: https://github.com/gnachman/iTerm2/blob/5d0c0d9f68523cbd0494dad5422998964a2ecd8d/sources/iTermPasteHelper.m#L206-L216
                     let pasted = pasted.replace("\r", "\n");
                     self.chat_widget.handle_paste(pasted);
+                }
+                TuiEvent::Mouse(mouse_event) => {
+                    self.handle_mouse_event(tui, mouse_event).await?;
                 }
                 TuiEvent::Draw | TuiEvent::Resize => {
                     if self.backtrack_render_pending {

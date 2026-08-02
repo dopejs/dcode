@@ -436,7 +436,7 @@ mod tests {
     #[test]
     fn non_codex_single_limit_renders_combined_row() {
         let now = Local::now();
-        let codex = RateLimitSnapshotDisplay {
+        let dcode = RateLimitSnapshotDisplay {
             limit_name: "codex".to_string(),
             captured_at: now,
             primary: Some(window(/*used_percent*/ 10.0)),
@@ -461,7 +461,7 @@ mod tests {
             individual_limit: None,
         };
 
-        let rows = match compose_rate_limit_data_many(&[codex, other], now) {
+        let rows = match compose_rate_limit_data_many(&[dcode, other], now) {
             StatusRateLimitData::Available(rows) => rows,
             other => panic!("unexpected status: {other:?}"),
         };

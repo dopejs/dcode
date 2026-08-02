@@ -36,6 +36,7 @@ use crate::tui;
 use crate::tui::TuiEvent;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
+use crossterm::event::KeyModifiers;
 use ratatui::buffer::Buffer;
 use ratatui::buffer::Cell;
 use ratatui::layout::Rect;
@@ -287,6 +288,27 @@ impl PagerView {
         }
         tui.frame_requester()
             .schedule_frame_in(crate::tui::TARGET_FRAME_INTERVAL);
+        Ok(())
+    }
+
+    fn handle_mouse_event(
+        &mut self,
+        tui: &mut tui::Tui,
+        kind: crossterm::event::MouseEventKind,
+    ) -> Result<()> {
+        let key_code = match kind {
+            crossterm::event::MouseEventKind::ScrollUp => KeyCode::Up,
+            crossterm::event::MouseEventKind::ScrollDown => KeyCode::Down,
+            crossterm::event::MouseEventKind::ScrollLeft
+            | crossterm::event::MouseEventKind::ScrollRight
+            | crossterm::event::MouseEventKind::Down(_)
+            | crossterm::event::MouseEventKind::Up(_)
+            | crossterm::event::MouseEventKind::Drag(_)
+            | crossterm::event::MouseEventKind::Moved => return Ok(()),
+        };
+        for _ in 0..3 {
+            self.handle_key_event(tui, KeyEvent::new(key_code, KeyModifiers::NONE))?;
+        }
         Ok(())
     }
 
@@ -799,6 +821,7 @@ impl TranscriptOverlay {
                 }
                 other => self.view.handle_key_event(tui, other),
             },
+            TuiEvent::Mouse(mouse_event) => self.view.handle_mouse_event(tui, mouse_event.kind),
             TuiEvent::Draw | TuiEvent::Resize => {
                 tui.draw(u16::MAX, |frame| {
                     self.render(frame.area(), frame.buffer);
@@ -897,6 +920,7 @@ impl StaticOverlay {
                 }
                 other => self.view.handle_key_event(tui, other),
             },
+            TuiEvent::Mouse(mouse_event) => self.view.handle_mouse_event(tui, mouse_event.kind),
             TuiEvent::Draw | TuiEvent::Resize => {
                 tui.draw(u16::MAX, |frame| {
                     self.render(frame.area(), frame.buffer);

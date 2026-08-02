@@ -287,7 +287,7 @@ fn source_backed_cells_render_raw_source_without_prefix_or_style() {
 #[test]
 fn proposed_plan_cell_renders_markdown_table() {
     let plan = new_proposed_plan(
-        "## Plan\n\n| Step | Owner |\n| --- | --- |\n| Verify | Codex |\n".to_string(),
+        "## Plan\n\n| Step | Owner |\n| --- | --- |\n| Verify | DCode |\n".to_string(),
         &test_cwd(),
     );
 
@@ -406,7 +406,7 @@ fn empty_mcp_output_preserves_docs_hyperlink() {
 #[test]
 fn proposed_plan_cell_unwraps_markdown_fenced_table() {
     let plan = new_proposed_plan(
-        "## Plan\n\n```markdown\n| Step | Owner |\n| --- | --- |\n| Verify | Codex |\n```\n"
+        "## Plan\n\n```markdown\n| Step | Owner |\n| --- | --- |\n| Verify | DCode |\n```\n"
             .to_string(),
         &test_cwd(),
     );
@@ -839,7 +839,7 @@ fn error_event_bedrock_expired_signature_snapshot() {
         user_message: Some(
             "Amazon Bedrock rejected the request because its AWS signature has expired. \
 Refresh your AWS credentials and retry. If `AWS_BEARER_TOKEN_BEDROCK` is set, update or \
-unset it, then restart Codex"
+unset it, then restart DCode"
                 .to_string(),
         ),
         url: Some("https://bedrock-mantle.us-east-2.api.aws/openai/v1/responses".to_string()),
@@ -1048,7 +1048,7 @@ fn prefixed_wrapped_history_cell_indents_wrapped_lines() {
     let summary = Line::from(vec![
         "You ".into(),
         "approved".bold(),
-        " codex to run ".into(),
+        " dcode to run ".into(),
         "echo something really long to ensure wrapping happens".dim(),
         " this time".bold(),
     ]);
@@ -1057,7 +1057,7 @@ fn prefixed_wrapped_history_cell_indents_wrapped_lines() {
     assert_eq!(
         rendered,
         vec![
-            "✔ You approved codex to".to_string(),
+            "✔ You approved dcode to".to_string(),
             "  run echo something".to_string(),
             "  really long to ensure".to_string(),
             "  wrapping happens this".to_string(),

@@ -36,6 +36,11 @@ const OPENAI_PROVIDER_NAME: &str = "OpenAI";
 const OPENAI_ACTOR_AUTHORIZATION_HEADER: &str = "x-openai-actor-authorization";
 pub const OPENAI_PROVIDER_ID: &str = "openai";
 pub const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
+const DEEPSEEK_PROVIDER_NAME: &str = "DeepSeek";
+pub const DEEPSEEK_PROVIDER_ID: &str = "deepseek";
+pub const DEEPSEEK_BASE_URL: &str = "https://api.deepseek.com";
+pub const DEEPSEEK_DEFAULT_MODEL: &str = "deepseek-v4-flash";
+const DEEPSEEK_API_KEY_INSTRUCTIONS: &str = "Create an API key at https://platform.deepseek.com/api_keys and export it as DEEPSEEK_API_KEY.";
 const AMAZON_BEDROCK_PROVIDER_NAME: &str = "Amazon Bedrock";
 pub const AMAZON_BEDROCK_PROVIDER_ID: &str = "amazon-bedrock";
 pub const AMAZON_BEDROCK_GPT_5_5_MODEL_ID: &str = "openai.gpt-5.5";
@@ -401,6 +406,29 @@ impl ModelProviderInfo {
         }
     }
 
+    pub fn create_deepseek_provider() -> ModelProviderInfo {
+        ModelProviderInfo {
+            name: DEEPSEEK_PROVIDER_NAME.into(),
+            base_url: Some(DEEPSEEK_BASE_URL.into()),
+            env_key: Some("DEEPSEEK_API_KEY".into()),
+            env_key_instructions: Some(DEEPSEEK_API_KEY_INSTRUCTIONS.into()),
+            experimental_bearer_token: None,
+            auth: None,
+            aws: None,
+            wire_api: WireApi::Responses,
+            query_params: None,
+            http_headers: None,
+            env_http_headers: None,
+            request_max_retries: None,
+            stream_max_retries: None,
+            stream_idle_timeout_ms: None,
+            websocket_connect_timeout_ms: None,
+            requires_openai_auth: false,
+            supports_websockets: false,
+            supports_standalone_web_search: false,
+        }
+    }
+
     pub fn is_openai(&self) -> bool {
         self.name == OPENAI_PROVIDER_NAME
     }
@@ -417,6 +445,11 @@ impl ModelProviderInfo {
 
     pub fn is_amazon_bedrock(&self) -> bool {
         self.name == AMAZON_BEDROCK_PROVIDER_NAME
+    }
+
+    pub fn is_deepseek(&self) -> bool {
+        self.name == DEEPSEEK_PROVIDER_NAME
+            && self.env_key_instructions.as_deref() == Some(DEEPSEEK_API_KEY_INSTRUCTIONS)
     }
 
     pub fn supports_remote_compaction(&self) -> bool {
@@ -441,14 +474,15 @@ pub fn built_in_model_providers(
     use ModelProviderInfo as P;
     let openai_provider = P::create_openai_provider(openai_base_url);
     let amazon_bedrock_provider = P::create_amazon_bedrock_provider(/*aws*/ None);
+    let deepseek_provider = P::create_deepseek_provider();
 
-    // We do not want to be in the business of adjucating which third-party
-    // providers are bundled with Codex CLI, so we only include the OpenAI and
-    // open source ("oss") providers by default. Users are encouraged to add to
-    // `model_providers` in config.toml to add their own providers.
+    // This fork bundles DeepSeek alongside the upstream OpenAI, Bedrock, and
+    // open source ("oss") providers. Other providers can still be added under
+    // `model_providers` in config.toml.
     [
         (OPENAI_PROVIDER_ID, openai_provider),
         (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
+        (DEEPSEEK_PROVIDER_ID, deepseek_provider),
         (
             OLLAMA_OSS_PROVIDER_ID,
             create_oss_provider(DEFAULT_OLLAMA_PORT, WireApi::Responses),
@@ -468,6 +502,9 @@ pub fn built_in_model_providers(
 /// Configured providers extend the built-in set. Built-in providers are not
 /// generally overridable, but the built-in Amazon Bedrock provider allows the
 /// user to customize its endpoint, authentication, headers, and AWS settings.
+/// The former documented DeepSeek provider template is migrated to the built-in
+/// provider, while materially customized DeepSeek entries retain their previous
+/// override behavior.
 pub fn merge_configured_model_providers(
     mut model_providers: HashMap<String, ModelProviderInfo>,
     configured_model_providers: HashMap<String, ModelProviderInfo>,
@@ -499,12 +536,27 @@ provider fields are not supported"
                         .extend(http_headers_override);
                 }
             }
+        } else if key == DEEPSEEK_PROVIDER_ID {
+            if !is_legacy_deepseek_provider(&provider) {
+                model_providers.insert(key, provider);
+            }
         } else {
             model_providers.entry(key).or_insert(provider);
         }
     }
 
     Ok(model_providers)
+}
+
+fn is_legacy_deepseek_provider(provider: &ModelProviderInfo) -> bool {
+    provider
+        == &ModelProviderInfo {
+            name: DEEPSEEK_PROVIDER_NAME.to_string(),
+            base_url: Some(DEEPSEEK_BASE_URL.to_string()),
+            env_key: Some("DEEPSEEK_API_KEY".to_string()),
+            wire_api: WireApi::Responses,
+            ..ModelProviderInfo::default()
+        }
 }
 
 pub fn create_oss_provider(default_provider_port: u16, wire_api: WireApi) -> ModelProviderInfo {

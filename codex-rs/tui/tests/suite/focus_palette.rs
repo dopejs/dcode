@@ -94,7 +94,7 @@ impl PtyCodex {
         let stdin = slave.try_clone().context("clone pseudo-terminal stdin")?;
         let stdout = slave.try_clone().context("clone pseudo-terminal stdout")?;
 
-        let codex = codex_utils_cargo_bin::cargo_bin("codex")
+        let codex = codex_utils_cargo_bin::cargo_bin("dcode")
             .or_else(|_| codex_utils_cargo_bin::cargo_bin("codex-tui"))?;
         let child = Command::new(codex)
             .arg("--no-alt-screen")
@@ -131,7 +131,7 @@ impl PtyCodex {
             self.read_output(Duration::from_millis(/*millis*/ 50))?;
             self.answer_startup_queries()?;
 
-            if self.palette_answered && self.screen_contains("OpenAI Codex") {
+            if self.palette_answered && self.screen_contains("DCode") {
                 return Ok(());
             }
 
@@ -144,7 +144,7 @@ impl PtyCodex {
         }
 
         bail!(
-            "Codex did not initialize within {:?}; screen:\n{}",
+            "DCode did not initialize within {:?}; screen:\n{}",
             STARTUP_TIMEOUT,
             self.screen_contents(),
         );

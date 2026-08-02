@@ -193,10 +193,10 @@ fn missing_state_db_check(scan: RolloutScan, details: Vec<String>) -> DoctorChec
                 )
                 .measured(format!("{} rollout files", scan.files.len()))
                 .expected("state DB contains matching thread rows")
-                .remedy("Start Codex with no state DB present so startup backfill can create it from rollout files."),
+                .remedy("Start DCode with no state DB present so startup backfill can create it from rollout files."),
         )
             .remediation(
-                "Start Codex with no state DB present so startup backfill can create it from rollout files.",
+                "Start DCode with no state DB present so startup backfill can create it from rollout files.",
             );
     }
     if !scan.scan_errors.is_empty() || !scan.malformed_names.is_empty() || scan.reached_scan_cap {
@@ -841,7 +841,7 @@ mod tests {
             !issue
                 .remedy
                 .as_deref()
-                .is_some_and(|remedy| remedy.starts_with("Restart Codex"))
+                .is_some_and(|remedy| remedy.starts_with("Restart DCode"))
         }));
         let missing_sample = check
             .details
@@ -1301,7 +1301,7 @@ mod tests {
 
     impl Fixture {
         async fn new() -> Self {
-            let codex_home = TempDir::new().expect("codex home");
+            let codex_home = TempDir::new().expect("dcode home");
             let sqlite_home = TempDir::new().expect("sqlite home");
             let _runtime = codex_state::StateRuntime::init(
                 codex_state::SqliteConfig::new_for_testing(sqlite_home.path().abs()),

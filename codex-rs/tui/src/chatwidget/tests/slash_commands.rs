@@ -1597,7 +1597,7 @@ async fn pending_token_activity_refresh_keeps_composer_visible_in_short_viewport
             .vt100()
             .screen()
             .contents()
-            .contains("Ask Codex to do anything")
+            .contains("Ask DCode to do anything")
     );
 }
 
@@ -1701,6 +1701,24 @@ async fn slash_logout_requests_app_server_logout() {
     chat.dispatch_command(SlashCommand::Logout);
 
     assert_matches!(rx.try_recv(), Ok(AppEvent::Logout));
+}
+
+#[tokio::test]
+async fn slash_login_opens_masked_deepseek_key_view_and_submits_login_event() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config.model_provider =
+        codex_model_provider_info::ModelProviderInfo::create_deepseek_provider();
+
+    chat.dispatch_command(SlashCommand::Login);
+    assert_eq!(chat.bottom_pane.active_view_id(), Some("deepseek-login"));
+
+    chat.bottom_pane.handle_paste("sk-secret-value".to_string());
+    chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+    let AppEvent::DeepSeekLogin { api_key } = rx.try_recv().expect("DeepSeek login event") else {
+        panic!("expected DeepSeek login event");
+    };
+    assert_eq!(api_key.into_inner(), "sk-secret-value");
 }
 
 #[tokio::test]

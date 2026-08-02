@@ -1,7 +1,7 @@
 //! CLI login commands and their direct-user observability surfaces.
 //!
 //! The TUI path already installs a broader tracing stack with feedback, OpenTelemetry, and other
-//! interactive-session layers. Direct `codex login` intentionally does less: it preserves the
+//! interactive-session layers. Direct `dcode login` intentionally does less: it preserves the
 //! existing stderr/browser UX and adds only a small file-backed tracing layer for login-specific
 //! targets. Keeping that setup local avoids pulling the TUI's session-oriented logging machinery
 //! into a one-shot CLI command while still producing a durable `codex-login.log` artifact that
@@ -19,6 +19,7 @@ use codex_login::login_with_api_key;
 use codex_login::logout_with_revoke;
 use codex_login::run_device_code_login;
 use codex_login::run_login_server;
+use codex_model_provider::validate_deepseek_api_key;
 use codex_protocol::auth::AuthMode;
 use codex_protocol::config_types::ForcedLoginMethod;
 use codex_utils_cli::CliConfigOverrides;
@@ -42,7 +43,7 @@ const ACCESS_TOKEN_LOGIN_DISABLED_MESSAGE: &str =
     "Access token login is disabled. Use API key login instead.";
 const LOGIN_SUCCESS_MESSAGE: &str = "Successfully logged in";
 
-/// Installs a small file-backed tracing layer for direct `codex login` flows.
+/// Installs a small file-backed tracing layer for direct `dcode login` flows.
 ///
 /// This deliberately duplicates a narrow slice of the TUI logging setup instead of reusing it
 /// wholesale. The TUI stack includes session-oriented layers that are valuable for interactive
@@ -96,7 +97,7 @@ fn init_login_file_logging(config: &Config) -> Option<WorkerGuard> {
         .with_ansi(false)
         .with_filter(env_filter);
 
-    // Direct `codex login` otherwise relies on ephemeral stderr and browser output.
+    // Direct `dcode login` otherwise relies on ephemeral stderr and browser output.
     // Persist the same login targets to a file so support can inspect auth failures
     // without reproducing them through TUI or app-server.
     if let Err(err) = tracing_subscriber::registry().with(file_layer).try_init() {
@@ -112,7 +113,7 @@ fn init_login_file_logging(config: &Config) -> Option<WorkerGuard> {
 
 fn print_login_server_start(actual_port: u16, auth_url: &str) {
     eprintln!(
-        "Starting local login server on http://localhost:{actual_port}.\nIf your browser did not open, navigate to this URL to authenticate:\n\n{auth_url}\n\nOn a remote or headless machine? Use `codex login --device-auth` instead."
+        "Starting local login server on http://localhost:{actual_port}.\nIf your browser did not open, navigate to this URL to authenticate:\n\n{auth_url}\n\nOn a remote or headless machine? Use `dcode login --device-auth` instead."
     );
 }
 
@@ -166,6 +167,71 @@ pub async fn login_with_chatgpt(
 
 pub async fn run_login_with_chatgpt(cli_config_overrides: CliConfigOverrides) -> ! {
     let config = load_config_or_exit(cli_config_overrides).await;
+    run_login_with_chatgpt_config(config).await;
+}
+
+/// Starts the login flow appropriate for the configured model provider.
+///
+/// DeepSeek does not expose a documented OAuth login flow for coding agents, so its default
+/// login securely prompts for an API key. Other providers retain the upstream ChatGPT flow.
+pub async fn run_login(cli_config_overrides: CliConfigOverrides) -> ! {
+    let config = load_config_or_exit(cli_config_overrides).await;
+    if config.model_provider.is_deepseek() {
+        let api_key = read_api_key_from_terminal("DeepSeek API key: ");
+        run_login_with_api_key_config(config, api_key).await;
+    }
+    run_login_with_chatgpt_config(config).await;
+}
+
+pub async fn run_login_with_api_key(
+    cli_config_overrides: CliConfigOverrides,
+    api_key: String,
+) -> ! {
+    let config = load_config_or_exit(cli_config_overrides).await;
+    run_login_with_api_key_config(config, api_key).await;
+}
+
+async fn run_login_with_api_key_config(config: Config, api_key: String) -> ! {
+    let _login_log_guard = init_login_file_logging(&config);
+    tracing::info!("starting api key login flow");
+
+    if matches!(config.forced_login_method, Some(ForcedLoginMethod::Chatgpt)) {
+        eprintln!("{API_KEY_LOGIN_DISABLED_MESSAGE}");
+        std::process::exit(1);
+    }
+
+    if config.model_provider.is_deepseek() {
+        eprintln!("Validating DeepSeek API key...");
+        if let Err(err) = validate_deepseek_api_key(
+            &config.model_provider,
+            &api_key,
+            config.http_client_factory(),
+        )
+        .await
+        {
+            eprintln!("Error validating DeepSeek API key: {err}");
+            std::process::exit(1);
+        }
+    }
+
+    match login_with_api_key(
+        &config.codex_home,
+        &api_key,
+        config.cli_auth_credentials_store_mode,
+        config.auth_keyring_backend_kind(),
+    ) {
+        Ok(_) => {
+            eprintln!("{LOGIN_SUCCESS_MESSAGE}");
+            std::process::exit(0);
+        }
+        Err(e) => {
+            eprintln!("Error logging in: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn run_login_with_chatgpt_config(config: Config) -> ! {
     let _login_log_guard = init_login_file_logging(&config);
     tracing::info!("starting browser login flow");
 
@@ -195,34 +261,26 @@ pub async fn run_login_with_chatgpt(cli_config_overrides: CliConfigOverrides) ->
     }
 }
 
-pub async fn run_login_with_api_key(
-    cli_config_overrides: CliConfigOverrides,
-    api_key: String,
-) -> ! {
-    let config = load_config_or_exit(cli_config_overrides).await;
-    let _login_log_guard = init_login_file_logging(&config);
-    tracing::info!("starting api key login flow");
-
-    if matches!(config.forced_login_method, Some(ForcedLoginMethod::Chatgpt)) {
-        eprintln!("{API_KEY_LOGIN_DISABLED_MESSAGE}");
+fn read_api_key_from_terminal(prompt: &str) -> String {
+    if !std::io::stdin().is_terminal() {
+        eprintln!(
+            "Interactive API key login requires a terminal. Pipe the key with `dcode login --with-api-key`."
+        );
         std::process::exit(1);
     }
 
-    match login_with_api_key(
-        &config.codex_home,
-        &api_key,
-        config.cli_auth_credentials_store_mode,
-        config.auth_keyring_backend_kind(),
-    ) {
-        Ok(_) => {
-            eprintln!("{LOGIN_SUCCESS_MESSAGE}");
-            std::process::exit(0);
-        }
-        Err(e) => {
-            eprintln!("Error logging in: {e}");
+    let api_key = match rpassword::prompt_password(prompt) {
+        Ok(api_key) => api_key.trim().to_string(),
+        Err(err) => {
+            eprintln!("Failed to read API key: {err}");
             std::process::exit(1);
         }
+    };
+    if api_key.is_empty() {
+        eprintln!("No API key provided.");
+        std::process::exit(1);
     }
+    api_key
 }
 
 pub async fn run_login_with_access_token(
@@ -263,7 +321,7 @@ pub async fn run_login_with_access_token(
 
 pub fn read_api_key_from_stdin() -> String {
     read_stdin_secret(
-        "--with-api-key expects the API key on stdin. Try piping it, e.g. `printenv OPENAI_API_KEY | codex login --with-api-key`.",
+        "--with-api-key expects the API key on stdin. Try piping it, e.g. `printenv DEEPSEEK_API_KEY | dcode login --with-api-key`.",
         "Reading API key from stdin...",
         "No API key provided via stdin.",
     )
@@ -271,7 +329,7 @@ pub fn read_api_key_from_stdin() -> String {
 
 pub fn read_access_token_from_stdin() -> String {
     read_stdin_secret(
-        "--with-access-token expects the access token on stdin. Try piping it, e.g. `printenv CODEX_ACCESS_TOKEN | codex login --with-access-token`.",
+        "--with-access-token expects the access token on stdin. Try piping it, e.g. `printenv CODEX_ACCESS_TOKEN | dcode login --with-access-token`.",
         "Reading access token from stdin...",
         "No access token provided via stdin.",
     )
@@ -348,7 +406,7 @@ pub async fn run_login_with_device_code(
 }
 
 /// Prefers device-code login (with `open_browser = false`) when headless environment is detected, but keeps
-/// `codex login` working in environments where device-code may be disabled/feature-gated.
+/// `dcode login` working in environments where device-code may be disabled/feature-gated.
 /// If `run_device_code_login` returns `ErrorKind::NotFound` ("device-code unsupported"), this
 /// falls back to starting the local browser login server.
 pub async fn run_login_with_device_code_fallback_to_browser(
@@ -437,7 +495,15 @@ pub async fn run_login_status(cli_config_overrides: CliConfigOverrides) -> ! {
         Ok(Some(auth)) => match auth.auth_mode() {
             AuthMode::ApiKey => match auth.get_token() {
                 Ok(api_key) => {
-                    eprintln!("Logged in using an API key - {}", safe_format_key(&api_key));
+                    let provider = if config.model_provider.is_deepseek() {
+                        "DeepSeek"
+                    } else {
+                        "OpenAI"
+                    };
+                    eprintln!(
+                        "Logged in to {provider} using an API key - {}",
+                        safe_format_key(&api_key)
+                    );
                     std::process::exit(0);
                 }
                 Err(e) => {
@@ -544,7 +610,7 @@ mod tests {
 
     #[tokio::test]
     async fn clears_existing_auth_before_login() {
-        let codex_home = tempdir().expect("create temporary Codex home");
+        let codex_home = tempdir().expect("create temporary DCode home");
         login_with_api_key(
             codex_home.path(),
             "sk-existing",

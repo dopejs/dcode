@@ -1,4 +1,4 @@
-//! Shared implementation for `codex archive`, `codex delete`, and `codex unarchive`.
+//! Shared implementation for `dcode archive`, `dcode delete`, and `dcode unarchive`.
 //!
 //! The CLI commands are thin app-server clients: resolve a user-provided UUID or exact session
 //! name, then call the corresponding app-server RPC.
@@ -259,7 +259,7 @@ async fn start_app_server_for_archive_command(
     let cli_kv_overrides = overrides_cli
         .parse_overrides()
         .map_err(|err| eyre!("failed to parse -c overrides: {err}"))?;
-    let codex_home = find_codex_home().wrap_err("failed to find Codex home")?;
+    let codex_home = find_codex_home().wrap_err("failed to find DCode home")?;
 
     let mut launch_loader_overrides = loader_overrides.clone();
     if let Some(profile_v2) = cli.config_profile_v2.as_ref() {

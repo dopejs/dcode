@@ -15,6 +15,7 @@ use codex_login::auth::AgentIdentityAuthError;
 use codex_login::auth::AgentIdentityAuthPolicy;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_protocol::error::CodexErr;
+use codex_protocol::error::CodexErrorDetails;
 use codex_protocol::protocol::SessionSource;
 use http::HeaderMap;
 use http::HeaderValue;
@@ -186,8 +187,14 @@ pub(crate) fn resolve_provider_auth(
         ));
     }
 
-    if let Some(auth) = bearer_auth_for_provider(provider)? {
-        return Ok(Arc::new(auth));
+    match bearer_auth_for_provider(provider) {
+        Ok(Some(auth)) => return Ok(Arc::new(auth)),
+        Ok(None) => {}
+        Err(err)
+            if provider.is_deepseek()
+                && auth.is_some()
+                && matches!(err.details(), CodexErrorDetails::EnvVar(_)) => {}
+        Err(err) => return Err(err),
     }
 
     Ok(match auth {
@@ -446,6 +453,22 @@ mod tests {
         let auth = resolve_provider_auth(/*auth*/ None, &provider).expect("auth should resolve");
 
         assert!(auth.to_auth_headers().is_empty());
+    }
+
+    #[test]
+    fn deepseek_stored_api_key_is_used_when_environment_key_is_missing() {
+        let mut provider = ModelProviderInfo::create_deepseek_provider();
+        provider.env_key = Some("CODEX_TEST_MISSING_DEEPSEEK_API_KEY".to_string());
+        let auth = CodexAuth::from_api_key("stored-deepseek-key");
+
+        let actual = resolve_provider_auth(Some(&auth), &provider)
+            .expect("stored DeepSeek auth should resolve")
+            .to_auth_headers();
+
+        assert_eq!(
+            actual.get(http::header::AUTHORIZATION),
+            Some(&HeaderValue::from_static("Bearer stored-deepseek-key"))
+        );
     }
 
     #[test]
