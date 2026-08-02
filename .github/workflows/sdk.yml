@@ -99,7 +99,7 @@ jobs:
             --build_metadata=COMMIT_SHA=${GITHUB_SHA} \
             --build_metadata=TAG_job=sdk \
             -- \
-            //codex-rs/cli:codex
+            //codex-rs/cli:dcode
 
           # Resolve the exact output file using the same wrapper/config path as
           # the build instead of guessing which Bazel convenience symlink is
@@ -110,7 +110,7 @@ jobs:
               cquery \
               --output=files \
               -- \
-              //codex-rs/cli:codex \
+              //codex-rs/cli:dcode \
               | grep -E '^(/|bazel-out/)' \
               | tail -n 1
           )"
@@ -120,7 +120,7 @@ jobs:
             codex_bazel_output_path="${GITHUB_WORKSPACE}/${cquery_output}"
           fi
           if [[ -z "${codex_bazel_output_path}" ]]; then
-            echo "Bazel did not report an output path for //codex-rs/cli:codex." >&2
+            echo "Bazel did not report an output path for //codex-rs/cli:dcode." >&2
             exit 1
           fi
           if [[ ! -e "${codex_bazel_output_path}" ]]; then

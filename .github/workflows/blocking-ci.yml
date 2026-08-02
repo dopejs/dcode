@@ -1,11 +1,10 @@
 name: blocking-ci
 
-# This is the single entrypoint for checks that block a PR merge. It also runs
-# after pushes to main so the same check family stays grouped in the Actions UI.
+# This upstream CI suite depends on OpenAI-managed runners. Keep it available
+# for explicit compatibility checks without scheduling unavailable runners in
+# the DCode fork. Normal pull request and main-branch checks run in dcode-ci.
 on:
-  pull_request: {}
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   # Keep reusable workflow calls alphabetized. The `required` job below is the
