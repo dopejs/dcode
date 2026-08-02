@@ -39,6 +39,12 @@ runs:
         curl -fsSL "${base_url}/${binding_name}" -o "${binding_path}"
         curl -fsSL "${base_url}/${checksums_name}" -o "${checksums_path}"
 
+        # GitHub release checksum files use CRLF on Windows. Git Bash's
+        # sha256sum treats the carriage return as part of the filename, so
+        # normalize the manifest before verifying it.
+        tr -d '\r' < "${checksums_path}" > "${checksums_path}.normalized"
+        mv "${checksums_path}.normalized" "${checksums_path}"
+
         if [[ "$(wc -l < "${checksums_path}")" -ne 2 ]]; then
           echo "Expected exactly two checksums for ${TARGET} in ${checksums_path}" >&2
           exit 1
