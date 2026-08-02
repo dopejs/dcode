@@ -1,11 +1,16 @@
 """Version discovery for Codex packages."""
 
 import re
+from pathlib import Path
 
 from .targets import REPO_ROOT
 
 
 WORKSPACE_VERSION_PATTERN = re.compile(r'^version\s*=\s*"([^"]+)"')
+STABLE_SEMVER_PATTERN = re.compile(
+    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
+)
+VERSION_BUMPS = ("major", "minor", "patch")
 
 
 def read_workspace_version() -> str:
@@ -27,3 +32,60 @@ def read_workspace_version() -> str:
                     return match.group(1)
 
     raise RuntimeError(f"Could not find [workspace.package].version in {cargo_toml}")
+
+
+def next_workspace_version(current: str, bump: str) -> str:
+    """Return the next stable semantic version for the requested bump."""
+    match = STABLE_SEMVER_PATTERN.fullmatch(current)
+    if match is None:
+        raise ValueError(f"workspace version must be stable semver, got {current!r}")
+    if bump not in VERSION_BUMPS:
+        raise ValueError(f"unsupported version bump {bump!r}")
+
+    major, minor, patch = (int(part) for part in match.groups())
+    if bump == "major":
+        return f"{major + 1}.0.0"
+    if bump == "minor":
+        return f"{major}.{minor + 1}.0"
+    return f"{major}.{minor}.{patch + 1}"
+
+
+def update_workspace_version(cargo_toml: Path, bump: str) -> str:
+    """Bump `[workspace.package].version` and return the new version."""
+    contents = cargo_toml.read_text(encoding="utf-8")
+    lines = contents.splitlines(keepends=True)
+    in_workspace_package = False
+    version_index: int | None = None
+    current: str | None = None
+
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == "[workspace.package]":
+            in_workspace_package = True
+            continue
+        if in_workspace_package and stripped.startswith("["):
+            break
+        if in_workspace_package:
+            match = WORKSPACE_VERSION_PATTERN.match(stripped)
+            if match is not None:
+                version_index = index
+                current = match.group(1)
+                break
+
+    if version_index is None or current is None:
+        raise RuntimeError(
+            f"Could not find [workspace.package].version in {cargo_toml}"
+        )
+
+    next_version = next_workspace_version(current, bump)
+    version_line = lines[version_index]
+    newline = (
+        "\r\n"
+        if version_line.endswith("\r\n")
+        else "\n"
+        if version_line.endswith("\n")
+        else ""
+    )
+    lines[version_index] = f'version = "{next_version}"{newline}'
+    cargo_toml.write_text("".join(lines), encoding="utf-8", newline="")
+    return next_version

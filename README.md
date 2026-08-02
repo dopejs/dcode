@@ -32,7 +32,11 @@ Start `dcode`, then run `/login` in the TUI and enter a DeepSeek API key. The ke
 
 ## Publish a release
 
-The workspace starts at version `0.1.0`. For later releases, update `workspace.package.version` in `codex-rs/Cargo.toml` and refresh the lockfile, then push a matching tag:
+Open **Actions → dcode-version-release → Run workflow** on the default branch and choose `patch`, `minor`, or `major`. The workflow updates `workspace.package.version` and `Cargo.lock`, commits the change, creates a matching `dcode-v*` tag, and starts the multi-platform release build. The tag build publishes the completed bundle as a GitHub Release.
+
+The version commit and tag are pushed atomically. If dispatching the build fails afterward, rerun **dcode-release** manually and select the newly created tag.
+
+The equivalent manual process is to update `workspace.package.version` in `codex-rs/Cargo.toml`, refresh the lockfile, and push a matching tag:
 
 ```sh
 git tag -a dcode-v0.1.0 -m "DCode 0.1.0"

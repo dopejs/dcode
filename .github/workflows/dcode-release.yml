@@ -180,7 +180,7 @@ jobs:
           retention-days: 14
 
   publish:
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/dcode-v') }}
+    if: ${{ startsWith(github.ref, 'refs/tags/dcode-v') }}
     needs:
       - validate-tag
       - bundle
