@@ -25,11 +25,40 @@ class InstallDcodeShTest(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             install_bin = root / "install-bin" / "dcode"
-            current = root / "codex-home" / "packages" / "standalone" / "current"
+            current = root / "codex-home" / "packages" / "dcode-standalone" / "current"
             self.assertEqual(os.readlink(install_bin), str(current / "bin" / "dcode"))
             self.assertEqual(
                 subprocess.check_output(
                     [install_bin, "--version"], text=True, encoding="utf-8"
+                ).strip(),
+                f"dcode-cli {VERSION}",
+            )
+
+            repeated = run_installer(root)
+
+            self.assertEqual(repeated.returncode, 0, repeated.stderr)
+            self.assertEqual(os.readlink(install_bin), str(current / "bin" / "dcode"))
+
+    def test_does_not_reuse_codex_standalone_current_link(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            create_release(root, current_target())
+            codex_release = (
+                root / "codex-home" / "packages" / "standalone" / "releases" / "9.9.9"
+            )
+            codex_release.mkdir(parents=True)
+            codex_current = codex_release.parents[1] / "current"
+            codex_current.symlink_to(codex_release)
+
+            result = run_installer(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(os.readlink(codex_current), str(codex_release))
+            self.assertEqual(
+                subprocess.check_output(
+                    [root / "install-bin" / "dcode", "--version"],
+                    text=True,
+                    encoding="utf-8",
                 ).strip(),
                 f"dcode-cli {VERSION}",
             )

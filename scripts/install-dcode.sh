@@ -6,7 +6,7 @@ REPOSITORY="${DCODE_GITHUB_REPOSITORY:-dopejs/dcode}"
 RELEASE="${DCODE_RELEASE:-latest}"
 INSTALL_DIR="${DCODE_INSTALL_DIR:-$HOME/.local/bin}"
 CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
-STANDALONE_ROOT="$CODEX_HOME_DIR/packages/standalone"
+STANDALONE_ROOT="$CODEX_HOME_DIR/packages/dcode-standalone"
 RELEASES_DIR="$STANDALONE_ROOT/releases"
 CURRENT_LINK="$STANDALONE_ROOT/current"
 BIN_PATH="$INSTALL_DIR/dcode"
@@ -113,7 +113,11 @@ replace_symlink() {
   fi
   tmp_link="${link_path}.tmp.$$"
   ln -s "$target" "$tmp_link"
-  mv -f "$tmp_link" "$link_path"
+  case "$(uname -s)" in
+    Darwin) mv -fh "$tmp_link" "$link_path" ;;
+    Linux) mv -fT "$tmp_link" "$link_path" ;;
+    *) die "unsupported operating system for symlink replacement" ;;
+  esac
 }
 
 validate_package() {
