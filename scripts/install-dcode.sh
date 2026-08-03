@@ -41,10 +41,12 @@ require_command() {
 download() {
   url="$1"
   output="$2"
+  label="$3"
+  printf 'Downloading %s\n' "$label"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$output"
+    curl -fL --progress-bar "$url" -o "$output"
   elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$output" "$url"
+    wget -O "$output" "$url"
   else
     die "curl or wget is required"
   fi
@@ -147,8 +149,8 @@ release_url="$DOWNLOAD_BASE/$tag"
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dcode-install.XXXXXX")"
 archive="$tmp_dir/$asset"
 checksums="$tmp_dir/dcode_SHA256SUMS"
-download "$release_url/$asset" "$archive"
-download "$release_url/dcode_SHA256SUMS" "$checksums"
+download "$release_url/$asset" "$archive" "$asset"
+download "$release_url/dcode_SHA256SUMS" "$checksums" "dcode_SHA256SUMS"
 
 expected="$(awk -v asset="$asset" '$2 == asset { print $1; exit }' "$checksums")"
 [ -n "$expected" ] || die "checksum manifest does not contain $asset"

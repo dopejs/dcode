@@ -24,6 +24,8 @@ class InstallDcodeShTest(unittest.TestCase):
             result = run_installer(root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(f"Downloading dcode-package-{target}.tar.gz", result.stdout)
+            self.assertIn("Downloading dcode_SHA256SUMS", result.stdout)
             install_bin = root / "install-bin" / "dcode"
             current = root / "codex-home" / "packages" / "dcode-standalone" / "current"
             self.assertEqual(os.readlink(install_bin), str(current / "bin" / "dcode"))

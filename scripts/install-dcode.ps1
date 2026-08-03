@@ -60,7 +60,9 @@ try {
     New-Item -ItemType Directory -Path $tempDir | Out-Null
     $archive = Join-Path $tempDir $asset
     $checksums = Join-Path $tempDir "dcode_SHA256SUMS"
+    Write-Host "Downloading $asset"
     Invoke-WebRequest -Uri "$releaseUrl/$asset" -OutFile $archive
+    Write-Host "Downloading dcode_SHA256SUMS"
     Invoke-WebRequest -Uri "$releaseUrl/dcode_SHA256SUMS" -OutFile $checksums
 
     $checksumLine = Get-Content -LiteralPath $checksums | Where-Object { $_ -match "^[0-9a-fA-F]{64}\s+$([regex]::Escape($asset))$" } | Select-Object -First 1
