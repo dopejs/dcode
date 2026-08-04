@@ -7,7 +7,7 @@ before:
 /status
 
 ╭──────────────────────────────────────────────────────────────────────────╮
-│  >_ DCode (v0.1.1)                                                       │
+│  >_ DCode (v0.1.2)                                                       │
 │                                                                          │
 │ Visit https://chatgpt.com/codex/settings/usage for up-to-date            │
 │ information on rate limits and credits                                   │
@@ -39,7 +39,7 @@ after:
 /status
 
 ╭───────────────────────────────────────────────────────────────────────────╮
-│  >_ DCode (v0.1.1)                                                        │
+│  >_ DCode (v0.1.2)                                                        │
 │                                                                           │
 │ Visit https://chatgpt.com/codex/settings/usage for up-to-date             │
 │ information on rate limits and credits                                    │
