@@ -93,6 +93,7 @@ use codex_terminal_detection::TerminalName;
 /// If no subcommand is specified, options will be forwarded to the interactive CLI.
 #[derive(Debug, Parser)]
 #[clap(
+    name = "dcode",
     author,
     version,
     // If a sub‑command is given, ignore requirements of the default args.
@@ -3165,6 +3166,18 @@ mod tests {
             command
                 .get_subcommands()
                 .all(|subcommand| subcommand.get_name() != "responses")
+        );
+    }
+
+    #[test]
+    fn version_output_uses_dcode_name() {
+        let err = MultitoolCli::try_parse_from(["dcode", "--version"])
+            .expect_err("version should short-circuit");
+
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
+        assert_eq!(
+            err.to_string(),
+            format!("dcode {}\n", env!("CARGO_PKG_VERSION"))
         );
     }
 
