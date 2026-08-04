@@ -3,7 +3,7 @@ source: tui/src/history_cell/tests.rs
 expression: rendered
 ---
 ╭─────────────────────────────────────────────────╮
-│ >_ DCode (v0.1.2)                               │
+│ >_ DCode (v0.1.3)                               │
 │                                                 │
 │ model:     deepseek-v4-flash   /model to change │
 │ directory: /tmp/project                         │
