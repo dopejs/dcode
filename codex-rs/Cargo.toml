@@ -541,6 +541,14 @@ ignored = [
 # across local dev builds.
 debug = "limited"
 
+[profile.test]
+# Test binaries dominate local disk usage in this workspace. Keep the standard
+# Cargo profile layout required by integration-test helper discovery, but omit
+# debug information and incremental caches.
+debug = "none"
+incremental = false
+strip = "symbols"
+
 [profile.dev-small]
 inherits = "dev"
 opt-level = 0

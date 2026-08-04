@@ -15,6 +15,11 @@ VERSION_BUMPS = ("major", "minor", "patch")
 
 def read_workspace_version() -> str:
     cargo_toml = REPO_ROOT / "codex-rs" / "Cargo.toml"
+    return read_workspace_version_from(cargo_toml)
+
+
+def read_workspace_version_from(cargo_toml: Path) -> str:
+    """Read `[workspace.package].version` from a Cargo workspace manifest."""
     in_workspace_package = False
     with open(cargo_toml, encoding="utf-8") as fh:
         for line in fh:
@@ -32,6 +37,29 @@ def read_workspace_version() -> str:
                     return match.group(1)
 
     raise RuntimeError(f"Could not find [workspace.package].version in {cargo_toml}")
+
+
+def update_dcode_snapshot_versions(
+    snapshot_root: Path, current_version: str, next_version: str
+) -> list[Path]:
+    """Update version-bearing DCode TUI snapshots for a release bump."""
+    replacements = (
+        (f"DCode (v{current_version})", f"DCode (v{next_version})"),
+        (
+            f"Update available! {current_version} ->",
+            f"Update available! {next_version} ->",
+        ),
+    )
+    updated: list[Path] = []
+    for snapshot in sorted(snapshot_root.rglob("*.snap")):
+        contents = snapshot.read_text(encoding="utf-8")
+        revised = contents
+        for old, new in replacements:
+            revised = revised.replace(old, new)
+        if revised != contents:
+            snapshot.write_text(revised, encoding="utf-8")
+            updated.append(snapshot)
+    return updated
 
 
 def next_workspace_version(current: str, bump: str) -> str:

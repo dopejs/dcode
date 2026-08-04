@@ -56,11 +56,14 @@ jobs:
             cargo metadata --locked --format-version 1 > /dev/null
           )
           changed="$(git diff --name-only)"
-          [[ "$changed" == $'codex-rs/Cargo.lock\ncodex-rs/Cargo.toml' ]] || {
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(codex-rs/Cargo\.(lock|toml)|codex-rs/tui/src/.*/snapshots/.*\.snap)$' || true)"
+          [[ -z "$unexpected" ]] || {
             echo "Unexpected version-bump changes:" >&2
-            printf '%s\n' "$changed" >&2
+            printf '%s\n' "$unexpected" >&2
             exit 1
           }
+          grep -Fxq 'codex-rs/Cargo.lock' <<<"$changed"
+          grep -Fxq 'codex-rs/Cargo.toml' <<<"$changed"
           git diff --check
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=dcode-v$version" >> "$GITHUB_OUTPUT"
@@ -83,7 +86,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add codex-rs/Cargo.toml codex-rs/Cargo.lock
+          git add -u codex-rs/Cargo.toml codex-rs/Cargo.lock codex-rs/tui/src
           git commit -m "Release DCode $VERSION"
           git tag -a "$TAG" -m "DCode $VERSION"
           git push --atomic origin "HEAD:refs/heads/$DEFAULT_BRANCH" "refs/tags/$TAG"

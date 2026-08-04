@@ -699,6 +699,29 @@ async fn session_info_availability_nux_tooltip_snapshot() {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "snapshot path rendering differs on Windows"
+)]
+async fn session_info_deepseek_login_tooltip_snapshot() {
+    let mut config = test_config().await;
+    config.cwd = test_path_buf("/tmp/project").abs();
+    let model = codex_model_provider_info::DEEPSEEK_DEFAULT_MODEL;
+    let cell = new_session_info(
+        &config,
+        model,
+        &session_configured_event(model),
+        /*is_first_event*/ false,
+        Some("Use /login to add or replace your DeepSeek API key.".to_string()),
+        /*auth_plan*/ None,
+        /*show_fast_status*/ false,
+    );
+
+    let rendered = render_transcript(&cell).join("\n");
+    insta::assert_snapshot!(rendered);
+}
+
+#[tokio::test]
 async fn session_info_first_event_suppresses_tooltips_and_nux() {
     let config = test_config().await;
     let cell = new_session_info(

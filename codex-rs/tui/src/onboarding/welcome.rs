@@ -95,7 +95,7 @@ impl WidgetRef for &WelcomeWidget {
             "  ".into(),
             "Welcome to ".into(),
             "DCode".bold(),
-            ", OpenAI's command-line coding agent".into(),
+            ", a DeepSeek-powered command-line coding agent".into(),
         ]));
 
         Paragraph::new(lines)
@@ -165,6 +165,30 @@ mod tests {
 
         let welcome_row = row_containing(&buf, "Welcome");
         assert_eq!(welcome_row, Some(0));
+    }
+
+    #[test]
+    fn welcome_without_animation_snapshot() {
+        let widget = WelcomeWidget::new(
+            /*is_logged_in*/ false,
+            FrameRequester::test_dummy(),
+            /*animations_enabled*/ false,
+        );
+        let area = Rect::new(0, 0, 72, 3);
+        let mut buf = Buffer::empty(area);
+        (&widget).render_ref(area, &mut buf);
+        let rendered = (0..area.height)
+            .map(|y| {
+                (0..area.width)
+                    .map(|x| buf[(x, y)].symbol())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        insta::assert_snapshot!(rendered);
     }
 
     #[test]

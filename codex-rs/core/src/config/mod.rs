@@ -82,9 +82,11 @@ use codex_mcp::McpProtocolMode;
 use codex_mcp::McpServerRegistration;
 use codex_mcp::ResolvedMcpCatalog;
 use codex_memories_read::memory_root;
+use codex_model_provider_info::DEEPSEEK_PROVIDER_ID;
 use codex_model_provider_info::LEGACY_OLLAMA_CHAT_PROVIDER_ID;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_model_provider_info::OLLAMA_CHAT_PROVIDER_REMOVED_ERROR;
+use codex_model_provider_info::OPENAI_PROVIDER_ID;
 use codex_model_provider_info::built_in_model_providers;
 use codex_model_provider_info::merge_configured_model_providers;
 use codex_models_manager::ModelsManagerConfig;
@@ -1510,6 +1512,16 @@ impl ConfigBuilder {
     #[cfg(test)]
     pub(crate) fn without_managed_config_for_tests() -> Self {
         Self::default().loader_overrides(LoaderOverrides::without_managed_config_for_tests())
+    }
+}
+
+fn default_model_provider_id(codex_home: &Path) -> &'static str {
+    let uses_dcode_home = std::env::var_os("DCODE_HOME").is_some()
+        || codex_home.file_name().is_some_and(|name| name == ".dcode");
+    if uses_dcode_home {
+        DEEPSEEK_PROVIDER_ID
+    } else {
+        OPENAI_PROVIDER_ID
     }
 }
 
@@ -3661,7 +3673,7 @@ impl Config {
 
         let model_provider_id = model_provider
             .or(cfg.model_provider)
-            .unwrap_or_else(|| "openai".to_string());
+            .unwrap_or_else(|| default_model_provider_id(&codex_home).to_string());
         let model_provider = model_providers
             .get(&model_provider_id)
             .ok_or_else(|| {

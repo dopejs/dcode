@@ -6,8 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 $repository = if ($env:DCODE_GITHUB_REPOSITORY) { $env:DCODE_GITHUB_REPOSITORY } else { "dopejs/dcode" }
 $downloadBase = if ($env:DCODE_RELEASE_BASE_URL) { $env:DCODE_RELEASE_BASE_URL.TrimEnd('/') } else { "https://github.com/$repository/releases/download" }
-$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
-$releasesDir = Join-Path $codexHome "packages\dcode-standalone\releases"
+$dcodeHome = if ($env:DCODE_HOME) { $env:DCODE_HOME } else { Join-Path $HOME ".dcode" }
+$releasesDir = Join-Path $dcodeHome "packages\standalone\releases"
 $tempRoot = [System.IO.Path]::GetTempPath()
 $tempDir = Join-Path $tempRoot ("dcode-install-" + [guid]::NewGuid().ToString("N"))
 $stageDir = $null

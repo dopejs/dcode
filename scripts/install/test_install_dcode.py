@@ -27,7 +27,7 @@ class InstallDcodeShTest(unittest.TestCase):
             self.assertIn(f"Downloading dcode-package-{target}.tar.gz", result.stdout)
             self.assertIn("Downloading dcode_SHA256SUMS", result.stdout)
             install_bin = root / "install-bin" / "dcode"
-            current = root / "codex-home" / "packages" / "dcode-standalone" / "current"
+            current = root / "dcode-home" / "packages" / "standalone" / "current"
             self.assertEqual(os.readlink(install_bin), str(current / "bin" / "dcode"))
             self.assertEqual(
                 subprocess.check_output(
@@ -125,7 +125,7 @@ def run_installer(root: Path) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.update(
         {
-            "CODEX_HOME": str(root / "codex-home"),
+            "DCODE_HOME": str(root / "dcode-home"),
             "DCODE_INSTALL_DIR": str(root / "install-bin"),
             "DCODE_RELEASE": VERSION,
             "DCODE_RELEASE_BASE_URL": (root / "releases").as_uri(),

@@ -16,7 +16,7 @@ Windows PowerShell (x86_64):
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/dopejs/dcode/releases/latest/download/install-dcode.ps1 | iex"
 ```
 
-The installer verifies the release archive against `dcode_SHA256SUMS`, installs the complete runtime package under `${CODEX_HOME:-~/.codex}/packages/dcode-standalone`, and exposes `dcode` through `~/.local/bin` by default. Override the command directory with `DCODE_INSTALL_DIR`; select an exact version with `DCODE_RELEASE=0.1.0`.
+The installer verifies the release archive against `dcode_SHA256SUMS`, installs the complete runtime package under `${DCODE_HOME:-~/.dcode}/packages/standalone`, and exposes `dcode` through `~/.local/bin` by default. Override the command directory with `DCODE_INSTALL_DIR`; select an exact version with `DCODE_RELEASE=0.1.0`.
 
 Supported release targets:
 

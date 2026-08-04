@@ -3,7 +3,7 @@ source: tui/src/history_cell/tests.rs
 expression: rendered
 ---
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ✨ Update available! 0.1.0 -> 9.9.9                                                                        │
+│ ✨ Update available! 0.1.1 -> 9.9.9                                                                        │
 │ Run powershell -ExecutionPolicy Bypass -c 'irm                                                             │
 │ https://github.com/dopejs/dcode/releases/latest/download/install-dcode.ps1 | iex' to update.               │
 │                                                                                                            │

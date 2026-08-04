@@ -220,6 +220,21 @@ async fn load_config_normalizes_relative_cwd_override() -> std::io::Result<()> {
 }
 
 #[tokio::test]
+async fn load_config_defaults_to_deepseek_provider() -> std::io::Result<()> {
+    let temp_dir = TempDir::new()?;
+    let codex_home = temp_dir.path().join(".dcode");
+    std::fs::create_dir(&codex_home)?;
+    let config = ConfigBuilder::default()
+        .codex_home(codex_home)
+        .build()
+        .await?;
+
+    assert_eq!(config.model_provider_id, DEEPSEEK_PROVIDER_ID);
+    assert!(config.model_provider.is_deepseek());
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_toml_parsing() {
     let history_with_persistence = r#"
 [history]

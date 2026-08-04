@@ -11,16 +11,20 @@ python := if os_family() == "windows" { "python" } else { "python3" }
 help:
     just -l
 
-# `codex`
-alias c := codex
+# DCode development entry point.
+alias c := dcode
+dcode *args:
+    cargo run --bin dcode -- {args}
+
+# Compatibility entry point used by the upstream TUI test workflow.
 codex *args:
-    cargo run --bin codex -- {args}
+    cargo run --bin dcode -- {args}
 
-# `codex exec`
+# `dcode exec`
 exec *args:
-    cargo run --bin codex -- exec {args}
+    cargo run --bin dcode -- exec {args}
 
-# Start `codex exec-server` and run codex-tui.
+# Start `dcode exec-server` and run the DCode TUI.
 [no-cd]
 [positional-arguments]
 [unix]
@@ -38,7 +42,7 @@ code-mode-host *args:
 # Build the CLI and run the app-server test client
 app-server-test-client *args:
     cargo build -p codex-cli
-    cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codex {args}
+    cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/dcode {args}
 
 # Format the justfile, Rust, Bazel/Starlark, Python SDK code, and Python scripts.
 fmt:
@@ -79,11 +83,46 @@ install:
 # there should be no need to add `--all-features`.
 [unix]
 test *args:
-    RUST_MIN_STACK={{ rust_min_stack }} NEXTEST_PROFILE=local cargo nextest run --no-fail-fast "$@"
+    CARGO_INCREMENTAL=0 RUST_MIN_STACK={{ rust_min_stack }} NEXTEST_PROFILE=local cargo nextest run --no-fail-fast "$@"
 
 [windows]
 test *args:
-    $env:RUST_MIN_STACK = "{{ rust_min_stack }}"; $env:NEXTEST_PROFILE = "local"; cargo nextest run --no-fail-fast @($args | Select-Object -Skip 1)
+    $env:CARGO_INCREMENTAL = "0"; $env:RUST_MIN_STACK = "{{ rust_min_stack }}"; $env:NEXTEST_PROFILE = "local"; cargo nextest run --no-fail-fast @($args | Select-Object -Skip 1)
+
+# Run tests and remove their build artifacts afterward, even when tests fail.
+[unix]
+test-clean *args:
+    #!/bin/sh
+    set +e
+    CARGO_INCREMENTAL=0 RUST_MIN_STACK={{ rust_min_stack }} NEXTEST_PROFILE=local cargo nextest run --no-fail-fast "$@"
+    test_status=$?
+    cargo clean --profile test
+    clean_status=$?
+    if [ "$test_status" -ne 0 ]; then exit "$test_status"; fi
+    exit "$clean_status"
+
+[windows]
+test-clean *args:
+    #!powershell.exe -File
+    $env:CARGO_INCREMENTAL = "0"
+    $env:RUST_MIN_STACK = "{{ rust_min_stack }}"
+    $env:NEXTEST_PROFILE = "local"
+    $forwardedArgs = @($args | Select-Object -Skip 1)
+    cargo nextest run --no-fail-fast @forwardedArgs
+    $testExitCode = $LASTEXITCODE
+    cargo clean --profile test
+    $cleanExitCode = $LASTEXITCODE
+    if ($testExitCode -ne 0) { exit $testExitCode }
+    exit $cleanExitCode
+
+# Remove the standard test profile while preserving release builds. Cargo may
+# also rebuild development artifacts that share its target/debug directory.
+clean-test-cache:
+    cargo clean --profile test
+
+# Remove every Cargo build artifact. Use this only when a full rebuild is acceptable.
+clean-build-cache:
+    cargo clean
 
 # Run from the repository root so scripts that resolve paths from `cwd` see
 # the same layout they use in GitHub Actions.

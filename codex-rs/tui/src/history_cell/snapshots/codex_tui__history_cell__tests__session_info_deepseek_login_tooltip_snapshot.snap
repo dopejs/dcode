@@ -3,9 +3,10 @@ source: tui/src/history_cell/tests.rs
 expression: rendered
 ---
 ╭─────────────────────────────────────────────────╮
-│ ✨ Update available! 0.1.1 -> 9.9.9             │
-│ Run pnpm add -g @openai/codex to update.        │
+│ >_ DCode (v0.1.1)                               │
 │                                                 │
-│ See full release notes:                         │
-│ https://github.com/dopejs/dcode/releases/latest │
+│ model:     deepseek-v4-flash   /model to change │
+│ directory: /tmp/project                         │
 ╰─────────────────────────────────────────────────╯
+
+  Tip: Use /login to add or replace your DeepSeek API key.
