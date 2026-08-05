@@ -1,3 +1,6 @@
+use codex_dcode_product::DCODE_PRODUCT;
+use codex_dcode_product::ProductInfo;
+use codex_dcode_product::current_product;
 use codex_features::FEATURES;
 use codex_protocol::account::PlanType;
 use lazy_static::lazy_static;
@@ -18,6 +21,7 @@ const FREE_GO_TOOLTIP: &str =
     "*New* For a limited time, Codex is included in your plan for free – let’s build together.";
 
 const RAW_TOOLTIPS: &str = include_str!("../tooltips.txt");
+const RAW_DCODE_TOOLTIPS: &str = include_str!("../dcode_tooltips.txt");
 
 lazy_static! {
     static ref TOOLTIPS: Vec<&'static str> = RAW_TOOLTIPS
@@ -39,6 +43,11 @@ lazy_static! {
         tips.extend(experimental_tooltips());
         tips
     };
+    static ref DCODE_TOOLTIPS: Vec<&'static str> = RAW_DCODE_TOOLTIPS
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
 }
 
 fn experimental_tooltips() -> Vec<&'static str> {
@@ -50,7 +59,21 @@ fn experimental_tooltips() -> Vec<&'static str> {
 
 /// Pick a random tooltip to show to the user when starting Codex.
 pub(crate) fn get_tooltip(plan: Option<PlanType>, fast_mode_enabled: bool) -> Option<String> {
+    get_tooltip_for_product(current_product(), plan, fast_mode_enabled)
+}
+
+fn get_tooltip_for_product(
+    product: &ProductInfo,
+    plan: Option<PlanType>,
+    fast_mode_enabled: bool,
+) -> Option<String> {
     let mut rng = rand::rng();
+
+    if *product == DCODE_PRODUCT {
+        return DCODE_TOOLTIPS
+            .get(rng.random_range(0..DCODE_TOOLTIPS.len()))
+            .map(ToString::to_string);
+    }
 
     if let Some(announcement) = announcement::fetch_announcement_tip(plan) {
         return Some(announcement);
@@ -122,7 +145,7 @@ fn pick_tooltip<R: Rng + ?Sized>(rng: &mut R) -> Option<&'static str> {
 
 pub(crate) mod announcement {
     use crate::tooltips::ANNOUNCEMENT_TIP_URL;
-    use crate::version::CODEX_CLI_VERSION;
+    use crate::version::cli_version;
     use chrono::NaiveDate;
     use chrono::Utc;
     use codex_http_client::ClientRouteClass;
@@ -140,6 +163,10 @@ pub(crate) mod announcement {
     /// Prewarm the cache of the announcement tip.
     pub(crate) fn prewarm(http_client_factory: HttpClientFactory) {
         if ANNOUNCEMENT_TIP.get().is_some() {
+            return;
+        }
+        if *codex_dcode_product::current_product() == codex_dcode_product::DCODE_PRODUCT {
+            let _ = ANNOUNCEMENT_TIP.set(None);
             return;
         }
         tokio::spawn(async move {
@@ -241,7 +268,7 @@ pub(crate) mod announcement {
                 .target_oses
                 .as_ref()
                 .is_none_or(|target_oses| target_oses.contains(&CURRENT_OS));
-            if tip.version_matches(CODEX_CLI_VERSION)
+            if tip.version_matches(cli_version())
                 && tip.date_matches(today)
                 && tip.target_app == "cli"
                 && plan_matches

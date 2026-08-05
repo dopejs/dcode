@@ -20,6 +20,10 @@ pub enum UpdateAction {
     StandaloneUnix,
     /// Update via `$env:CODEX_NON_INTERACTIVE=1; irm https://chatgpt.com/codex/install.ps1 | iex`.
     StandaloneWindows,
+    /// Update DCode with its standalone GitHub installer.
+    DcodeStandaloneUnix,
+    /// Update DCode with its standalone GitHub installer on Windows.
+    DcodeStandaloneWindows,
 }
 
 impl UpdateAction {
@@ -61,6 +65,22 @@ impl UpdateAction {
                     "$env:CODEX_NON_INTERACTIVE=1; irm https://chatgpt.com/codex/install.ps1 | iex",
                 ],
             ),
+            UpdateAction::DcodeStandaloneUnix => (
+                "sh",
+                &[
+                    "-c",
+                    "curl -fsSL https://github.com/dopejs/dcode/releases/latest/download/install-dcode.sh | sh",
+                ],
+            ),
+            UpdateAction::DcodeStandaloneWindows => (
+                "powershell",
+                &[
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-c",
+                    "irm https://github.com/dopejs/dcode/releases/latest/download/install-dcode.ps1 | iex",
+                ],
+            ),
         }
     }
 
@@ -74,6 +94,13 @@ impl UpdateAction {
 
 #[cfg(not(debug_assertions))]
 pub fn get_update_action() -> Option<UpdateAction> {
+    if codex_dcode_product::current_product().cli_name == "dcode" {
+        return Some(if cfg!(windows) {
+            UpdateAction::DcodeStandaloneWindows
+        } else {
+            UpdateAction::DcodeStandaloneUnix
+        });
+    }
     UpdateAction::from_install_context(InstallContext::current())
 }
 

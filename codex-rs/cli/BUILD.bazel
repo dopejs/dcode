@@ -16,6 +16,10 @@ multiplatform_binaries(
     name = "codex",
 )
 
+multiplatform_binaries(
+    name = "dcode",
+)
+
 codex_e2e_benchmark(
     name = "codex-help",
     binaries = [":codex"],

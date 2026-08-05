@@ -5781,6 +5781,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
             /*attestation_provider*/ None,
             config.http_client_factory(),
         ),
+        vision_cache: tokio::sync::Mutex::new(crate::vision::VisionCache::default()),
         executed_tool_calls,
         code_mode_service: crate::tools::code_mode::CodeModeService::new(
             Arc::new(codex_code_mode::DisabledCodeModeSessionProvider),
@@ -7988,6 +7989,7 @@ where
             /*attestation_provider*/ None,
             config.http_client_factory(),
         ),
+        vision_cache: tokio::sync::Mutex::new(crate::vision::VisionCache::default()),
         executed_tool_calls,
         code_mode_service: crate::tools::code_mode::CodeModeService::new(
             Arc::new(codex_code_mode::DisabledCodeModeSessionProvider),

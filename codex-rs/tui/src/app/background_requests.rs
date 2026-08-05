@@ -13,6 +13,8 @@ use codex_app_server_protocol::AppsListParams;
 use codex_app_server_protocol::AppsListResponse;
 use codex_app_server_protocol::ConsumeAccountRateLimitResetCreditParams;
 use codex_app_server_protocol::ConsumeAccountRateLimitResetCreditResponse;
+use codex_app_server_protocol::LoginAccountParams;
+use codex_app_server_protocol::LoginAccountResponse;
 use codex_app_server_protocol::MarketplaceAddParams;
 use codex_app_server_protocol::MarketplaceAddResponse;
 use codex_app_server_protocol::MarketplaceRemoveParams;
@@ -34,7 +36,104 @@ const RATE_LIMIT_RESET_REQUEST_TIMEOUT: std::time::Duration =
 const WORKSPACE_HEADLINE_FETCH_TIMEOUT: std::time::Duration =
     std::time::Duration::from_millis(/*millis*/ 2000);
 
+#[derive(Debug, Default)]
+pub(super) struct ProviderBalanceRefreshState {
+    next_request_id: u64,
+    pending_request_id: Option<u64>,
+}
+
+impl ProviderBalanceRefreshState {
+    fn begin(&mut self) -> u64 {
+        let request_id = self.next_request_id;
+        self.next_request_id = self.next_request_id.wrapping_add(1);
+        self.pending_request_id = Some(request_id);
+        request_id
+    }
+
+    pub(super) fn finish(&mut self, request_id: u64) -> bool {
+        if self.pending_request_id != Some(request_id) {
+            return false;
+        }
+        self.pending_request_id = None;
+        true
+    }
+}
+
 impl App {
+    pub(super) fn login_to_provider(
+        &mut self,
+        app_server: &AppServerSession,
+        api_key: crate::app_event::SensitiveApiKey,
+    ) {
+        let provider = create_model_provider(
+            self.config.model_provider.clone(),
+            /*auth_manager*/ None,
+        );
+        let provider_name = self.config.model_provider.name.clone();
+        let http_client_factory = self.config.http_client_factory();
+        let request_handle = app_server.request_handle();
+        let app_event_tx = self.app_event_tx.clone();
+        tokio::spawn(async move {
+            let api_key = api_key.into_inner();
+            let result = async {
+                let balance = provider
+                    .validate_api_key(&api_key, http_client_factory)
+                    .await
+                    .map_err(|err| format!("{provider_name} API key validation failed: {err}"))?
+                    .ok_or_else(|| format!("{provider_name} did not return account details"))?;
+                let request_id = RequestId::String(format!("provider-login-{}", Uuid::new_v4()));
+                match request_handle
+                    .request_typed::<LoginAccountResponse>(ClientRequest::LoginAccount {
+                        request_id,
+                        params: LoginAccountParams::ApiKey { api_key },
+                    })
+                    .await
+                    .map_err(|err| format!("Failed to save {provider_name} API key: {err}"))?
+                {
+                    LoginAccountResponse::ApiKey {} => Ok(balance),
+                    response => Err(format!(
+                        "Unexpected account/login/start response: {response:?}"
+                    )),
+                }
+            }
+            .await;
+            app_event_tx.send(AppEvent::ProviderApiKeyLoginFinished {
+                provider_name,
+                result,
+            });
+        });
+    }
+
+    pub(super) fn refresh_provider_balance(&mut self) {
+        let config = self.config.clone();
+        let provider =
+            create_model_provider(config.model_provider.clone(), /*auth_manager*/ None);
+        if !provider.capabilities().account_balance {
+            return;
+        }
+        let request_id = self.provider_balance_refresh.begin();
+        let app_event_tx = self.app_event_tx.clone();
+        tokio::spawn(async move {
+            let auth_manager = codex_login::shared_auth_from_config(
+                &config, /*enable_codex_api_key_env*/ false,
+            )
+            .await;
+            let provider = create_model_provider(config.model_provider.clone(), Some(auth_manager));
+            let result = provider
+                .account_balance(config.http_client_factory())
+                .await
+                .and_then(|balance| {
+                    balance.ok_or_else(|| {
+                        codex_protocol::error::CodexErr::InvalidRequest(
+                            "provider did not return a balance".to_string(),
+                        )
+                    })
+                })
+                .map_err(|err| err.to_string());
+            app_event_tx.send(AppEvent::ProviderBalanceUpdated { request_id, result });
+        });
+    }
+
     pub(super) fn fetch_mcp_inventory(
         &mut self,
         app_server: &AppServerSession,

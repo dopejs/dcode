@@ -35,6 +35,8 @@ members = [
     "connectors",
     "config",
     "context-fragments",
+    "dcode-product",
+    "dcode-deepseek",
     "shell-command",
     "shell-escalation",
     "skills",
@@ -179,6 +181,8 @@ codex-connectors = { path = "connectors" }
 codex-agent-extension = { path = "ext/agent" }
 codex-connectors-extension = { path = "ext/connectors" }
 codex-context-fragments = { path = "context-fragments" }
+codex-dcode-product = { path = "dcode-product" }
+codex-dcode-deepseek = { path = "dcode-deepseek" }
 codex-core = { path = "core" }
 codex-core-api = { path = "core-api" }
 codex-core-plugins = { path = "core-plugins" }
@@ -375,6 +379,7 @@ pretty_assertions = "1.4.1"
 pulldown-cmark = { version = "0.10", default-features = false }
 quick-xml = "0.41.0"
 rand = "0.9"
+rpassword = "7.5.4"
 ratatui = { version = "0.30.2", default-features = false, features = [
     "crossterm",
     "layout-cache",

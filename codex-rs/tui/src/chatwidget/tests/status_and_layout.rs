@@ -650,6 +650,40 @@ async fn status_line_uses_secondary_fallback_for_unsupported_window() {
 }
 
 #[tokio::test]
+async fn provider_balance_renders_in_status_line() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config.tui_status_line = Some(vec!["api-balance".to_string()]);
+    chat.set_provider_balance(Ok(codex_model_provider::ProviderBalance {
+        is_available: true,
+        balance_infos: vec![codex_model_provider::ProviderBalanceInfo {
+            currency: "CNY".to_string(),
+            total_balance: "110.00".to_string(),
+            granted_balance: "10.00".to_string(),
+            topped_up_balance: "100.00".to_string(),
+        }],
+    }));
+
+    assert_eq!(
+        chat.status_line_value_for_item(crate::bottom_pane::StatusLineItem::ApiBalance),
+        Some("Balance CNY 110.00".to_string())
+    );
+
+    chat.show_welcome_banner = false;
+    chat.refresh_status_line();
+    let width = 80;
+    let height = chat.desired_height(width);
+    let mut terminal = ratatui::Terminal::new(TestBackend::new(width, height))
+        .expect("create provider balance terminal");
+    terminal
+        .draw(|frame| chat.render(frame.area(), frame.buffer_mut()))
+        .expect("draw provider balance footer");
+    assert_chatwidget_snapshot!(
+        "provider_balance_status_line",
+        normalized_backend_snapshot(terminal.backend())
+    );
+}
+
+#[tokio::test]
 async fn status_line_legacy_limit_items_prefer_matching_windows() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 

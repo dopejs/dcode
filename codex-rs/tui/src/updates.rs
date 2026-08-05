@@ -20,12 +20,12 @@ use codex_login::default_client::default_headers;
 use serde::Deserialize;
 use std::path::Path;
 
-use crate::version::CODEX_CLI_VERSION;
+use crate::version::cli_version;
 
 pub(crate) use crate::updates_cache::dismiss_version;
 
 pub fn get_upgrade_version(config: &Config) -> Option<String> {
-    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+    if !config.check_for_update_on_startup || is_source_build_version(cli_version()) {
         return None;
     }
 
@@ -49,7 +49,7 @@ pub fn get_upgrade_version(config: &Config) -> Option<String> {
     }
 
     info.and_then(|info| {
-        if is_newer(&info.latest_version, CODEX_CLI_VERSION).unwrap_or(false) {
+        if is_newer(&info.latest_version, cli_version()).unwrap_or(false) {
             Some(info.latest_version)
         } else {
             None
@@ -59,7 +59,8 @@ pub fn get_upgrade_version(config: &Config) -> Option<String> {
 
 // We use the latest version from the cask if installation is via homebrew - homebrew does not immediately pick up the latest release and can lag behind.
 const HOMEBREW_CASK_API_URL: &str = "https://formulae.brew.sh/api/cask/codex.json";
-const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
+const CODEX_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
+const DCODE_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/dopejs/dcode/releases/latest";
 
 #[derive(Deserialize, Debug, Clone)]
 struct ReleaseInfo {
@@ -135,7 +136,13 @@ async fn fetch_latest_github_release_version(
     let ReleaseInfo {
         tag_name: latest_tag_name,
     } = client_pool
-        .get(LATEST_RELEASE_URL)
+        .get(
+            if codex_dcode_product::current_product().cli_name == "dcode" {
+                DCODE_LATEST_RELEASE_URL
+            } else {
+                CODEX_LATEST_RELEASE_URL
+            },
+        )
         .headers(default_headers())
         .send()
         .await?
@@ -148,7 +155,7 @@ async fn fetch_latest_github_release_version(
 /// Returns the latest version to show in a popup, if it should be shown.
 /// This respects the user's dismissal choice for the current latest version.
 pub fn get_upgrade_version_for_popup(config: &Config) -> Option<String> {
-    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+    if !config.check_for_update_on_startup || is_source_build_version(cli_version()) {
         return None;
     }
 

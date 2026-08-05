@@ -156,6 +156,7 @@ mod user_message_admission;
 mod user_notification;
 mod user_shell_cmd;
 mod view_image;
+mod vision;
 mod web_search;
 mod websocket_fallback;
 mod window_headers;

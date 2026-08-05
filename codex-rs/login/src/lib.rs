@@ -63,3 +63,11 @@ pub use auth_env_telemetry::AuthEnvTelemetry;
 pub use auth_env_telemetry::collect_auth_env_telemetry;
 pub use outbound_proxy::AuthRouteConfig;
 pub use token_data::TokenData;
+
+/// Loads the shared authentication state for an already-resolved runtime config.
+pub async fn shared_auth_from_config(
+    config: &impl AuthManagerConfig,
+    enable_codex_api_key_env: bool,
+) -> std::sync::Arc<AuthManager> {
+    AuthManager::shared_from_config(config, enable_codex_api_key_env).await
+}

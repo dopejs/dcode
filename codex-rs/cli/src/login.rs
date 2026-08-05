@@ -195,6 +195,34 @@ pub async fn run_login_with_chatgpt(cli_config_overrides: CliConfigOverrides) ->
     }
 }
 
+/// Starts the login flow appropriate for the active product distribution.
+///
+/// DeepSeek does not document an OAuth flow that issues API keys, so DCode
+/// prompts for a key without echoing it. Upstream Codex retains ChatGPT login.
+pub async fn run_login(cli_config_overrides: CliConfigOverrides) -> ! {
+    if *codex_dcode_product::current_product() != codex_dcode_product::DCODE_PRODUCT {
+        run_login_with_chatgpt(cli_config_overrides).await;
+    }
+    if !std::io::stdin().is_terminal() {
+        eprintln!(
+            "Interactive API key login requires a terminal. Pipe the key with `dcode login --with-api-key`."
+        );
+        std::process::exit(1);
+    }
+    let api_key = match rpassword::prompt_password("DeepSeek API key: ") {
+        Ok(api_key) if !api_key.trim().is_empty() => api_key.trim().to_string(),
+        Ok(_) => {
+            eprintln!("No API key provided.");
+            std::process::exit(1);
+        }
+        Err(err) => {
+            eprintln!("Failed to read API key: {err}");
+            std::process::exit(1);
+        }
+    };
+    run_login_with_api_key(cli_config_overrides, api_key).await;
+}
+
 pub async fn run_login_with_api_key(
     cli_config_overrides: CliConfigOverrides,
     api_key: String,
@@ -206,6 +234,20 @@ pub async fn run_login_with_api_key(
     if matches!(config.forced_login_method, Some(ForcedLoginMethod::Chatgpt)) {
         eprintln!("{API_KEY_LOGIN_DISABLED_MESSAGE}");
         std::process::exit(1);
+    }
+
+    if *codex_dcode_product::current_product() == codex_dcode_product::DCODE_PRODUCT {
+        eprintln!("Validating DeepSeek API key...");
+        if let Err(err) = codex_dcode_deepseek::validate_deepseek_api_key(
+            &config.model_provider,
+            &api_key,
+            config.http_client_factory(),
+        )
+        .await
+        {
+            eprintln!("Error validating DeepSeek API key: {err}");
+            std::process::exit(1);
+        }
     }
 
     match login_with_api_key(

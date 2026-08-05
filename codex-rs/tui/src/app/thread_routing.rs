@@ -1008,6 +1008,9 @@ impl App {
             self.agent_navigation.mark_running(thread_id);
         } else if turn_stopped {
             self.agent_navigation.mark_stopped(thread_id);
+            if self.active_thread_id == Some(thread_id) {
+                self.refresh_provider_balance();
+            }
         }
 
         if let Some(notification) = notification {

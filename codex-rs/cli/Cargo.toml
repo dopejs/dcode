@@ -11,6 +11,10 @@ name = "codex"
 path = "src/main.rs"
 
 [[bin]]
+name = "dcode"
+path = "src/bin/dcode.rs"
+
+[[bin]]
 name = "logs_client"
 path = "src/bin/logs_client.rs"
 
@@ -36,6 +40,8 @@ codex-api = { workspace = true }
 codex-chatgpt = { workspace = true }
 codex-cloud-config = { workspace = true }
 codex-cloud-tasks = { path = "../cloud-tasks" }
+codex-dcode-deepseek = { workspace = true }
+codex-dcode-product = { workspace = true }
 codex-utils-cli = { workspace = true }
 codex-config = { workspace = true }
 codex-core = { workspace = true }
@@ -75,6 +81,7 @@ http = { workspace = true }
 libc = { workspace = true }
 os_info = { workspace = true }
 owo-colors = { workspace = true }
+rpassword = { workspace = true }
 regex-lite = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

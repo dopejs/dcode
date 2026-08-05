@@ -471,6 +471,24 @@ impl App {
                         .add_error_message(format!("Logout failed: {err}"));
                 }
             },
+            AppEvent::ProviderApiKeyLogin { api_key } => {
+                self.chat_widget
+                    .add_info_message("Validating provider API key…".to_string(), None);
+                self.login_to_provider(app_server, api_key);
+            }
+            AppEvent::ProviderApiKeyLoginFinished {
+                provider_name,
+                result,
+            } => match result {
+                Ok(balance) => {
+                    self.chat_widget.set_provider_balance(Ok(balance));
+                    self.chat_widget.add_info_message(
+                        format!("Successfully logged in to {provider_name}."),
+                        None,
+                    );
+                }
+                Err(err) => self.chat_widget.add_error_message(err),
+            },
             AppEvent::FatalExitRequest(message) => {
                 return Ok(AppRunControl::Exit(ExitReason::Fatal(message)));
             }
@@ -2310,6 +2328,11 @@ impl App {
                     .set_status_line_workspace_headline(request_id, result)
                 {
                     tui.frame_requester().schedule_frame();
+                }
+            }
+            AppEvent::ProviderBalanceUpdated { request_id, result } => {
+                if self.provider_balance_refresh.finish(request_id) {
+                    self.chat_widget.set_provider_balance(result);
                 }
             }
             AppEvent::StatusLineSetupCancelled => {

@@ -406,11 +406,30 @@ impl ChatWidget {
 
     pub(super) fn configured_status_line_items(&self) -> Vec<String> {
         self.config.tui_status_line.clone().unwrap_or_else(|| {
-            DEFAULT_STATUS_LINE_ITEMS
+            let mut items = DEFAULT_STATUS_LINE_ITEMS
                 .iter()
                 .map(ToString::to_string)
-                .collect()
+                .collect::<Vec<_>>();
+            let provider = codex_model_provider::create_model_provider(
+                self.config.model_provider.clone(),
+                /*auth_manager*/ None,
+            );
+            if provider.capabilities().account_balance {
+                items.push(StatusLineItem::ApiBalance.to_string());
+            }
+            items
         })
+    }
+
+    pub(crate) fn set_provider_balance(
+        &mut self,
+        result: Result<codex_model_provider::ProviderBalance, String>,
+    ) {
+        match result {
+            Ok(balance) => self.status_line_provider_balance = Some(balance),
+            Err(err) => tracing::debug!(error = %err, "failed to fetch provider API balance"),
+        }
+        self.refresh_status_line();
     }
 
     /// Parses configured terminal-title ids into known items and collects unknown ids.
@@ -711,7 +730,21 @@ impl ChatWidget {
                 let label = limit_label_for_window(window.window_minutes, is_secondary);
                 self.status_line_limit_display(Some(window), &label)
             }
-            StatusLineItem::CodexVersion => Some(CODEX_CLI_VERSION.to_string()),
+            StatusLineItem::ApiBalance => {
+                self.status_line_provider_balance.as_ref().map(|balance| {
+                    if !balance.is_available || balance.balance_infos.is_empty() {
+                        return "Balance unavailable".to_string();
+                    }
+                    let balances = balance
+                        .balance_infos
+                        .iter()
+                        .map(|info| format!("{} {}", info.currency, info.total_balance))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("Balance {balances}")
+                })
+            }
+            StatusLineItem::CodexVersion => Some(cli_version().to_string()),
             StatusLineItem::ContextWindowSize => self
                 .status_line_context_window_size()
                 .map(|cws| format!("{} window", format_tokens_compact(cws))),
@@ -780,6 +813,7 @@ impl ChatWidget {
             StatusSurfacePreviewItem::ContextUsed => StatusLineItem::ContextUsed,
             StatusSurfacePreviewItem::FiveHourLimit => StatusLineItem::FiveHourLimit,
             StatusSurfacePreviewItem::WeeklyLimit => StatusLineItem::WeeklyLimit,
+            StatusSurfacePreviewItem::ApiBalance => StatusLineItem::ApiBalance,
             StatusSurfacePreviewItem::CodexVersion => StatusLineItem::CodexVersion,
             StatusSurfacePreviewItem::ContextWindowSize => StatusLineItem::ContextWindowSize,
             StatusSurfacePreviewItem::UsedTokens => StatusLineItem::UsedTokens,

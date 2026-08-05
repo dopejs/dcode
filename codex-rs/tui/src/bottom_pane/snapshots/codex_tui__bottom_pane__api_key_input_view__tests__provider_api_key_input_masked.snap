@@ -1,0 +1,27 @@
+---
+source: tui/src/bottom_pane/api_key_input_view_tests.rs
+expression: "format!(\"{buffer:?}\")"
+---
+Buffer {
+    area: Rect { x: 0, y: 0, width: 48, height: 5 },
+    content: [
+        "▌ DeepSeek login                                ",
+        "  The key is validated before it is saved.      ",
+        "> •••••••••••••••                               ",
+        "                                                ",
+        "Press enter to confirm or esc to go back        ",
+    ],
+    styles: [
+        x: 0, y: 0, fg: Cyan, bg: Reset, underline: Reset, modifier: NONE,
+        x: 2, y: 0, fg: Reset, bg: Reset, underline: Reset, modifier: BOLD,
+        x: 16, y: 0, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 2, y: 1, fg: Reset, bg: Reset, underline: Reset, modifier: DIM,
+        x: 42, y: 1, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 0, y: 2, fg: Cyan, bg: Reset, underline: Reset, modifier: NONE,
+        x: 2, y: 2, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 6, y: 4, fg: Reset, bg: Reset, underline: Reset, modifier: DIM,
+        x: 11, y: 4, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 26, y: 4, fg: Reset, bg: Reset, underline: Reset, modifier: DIM,
+        x: 29, y: 4, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+    ]
+}

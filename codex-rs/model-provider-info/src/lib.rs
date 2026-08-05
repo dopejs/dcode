@@ -20,6 +20,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::OnceLock;
+use std::sync::RwLock;
 use std::time::Duration;
 
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS: u64 = 300_000;
@@ -49,6 +51,24 @@ const AMAZON_BEDROCK_MANTLE_CLIENT_AGENT_VALUE: &str = "codex";
 const CHAT_WIRE_API_REMOVED_ERROR: &str = "`wire_api = \"chat\"` is no longer supported.\nHow to fix: set `wire_api = \"responses\"` in your provider config.\nMore info: https://github.com/openai/codex/discussions/7782";
 pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
 pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/codex/discussions/7782";
+
+type BuiltInProviderFactory = fn() -> ModelProviderInfo;
+
+static DOWNSTREAM_BUILT_IN_PROVIDERS: OnceLock<
+    RwLock<HashMap<&'static str, BuiltInProviderFactory>>,
+> = OnceLock::new();
+
+/// Registers a provider supplied by a downstream Codex distribution.
+///
+/// Registration is process-local and should happen during CLI startup, before
+/// configuration is loaded. Existing upstream built-ins always take precedence.
+pub fn register_downstream_built_in_provider(id: &'static str, factory: BuiltInProviderFactory) {
+    let providers = DOWNSTREAM_BUILT_IN_PROVIDERS.get_or_init(Default::default);
+    providers
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(id, factory);
+}
 
 /// Wire protocol that the provider speaks.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, JsonSchema)]
@@ -441,7 +461,7 @@ pub fn built_in_model_providers(
     // providers are bundled with Codex CLI, so we only include the OpenAI and
     // open source ("oss") providers by default. Users are encouraged to add to
     // `model_providers` in config.toml to add their own providers.
-    [
+    let mut providers: HashMap<String, ModelProviderInfo> = [
         (OPENAI_PROVIDER_ID, openai_provider),
         (AMAZON_BEDROCK_PROVIDER_ID, amazon_bedrock_provider),
         (
@@ -455,7 +475,19 @@ pub fn built_in_model_providers(
     ]
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
-    .collect()
+    .collect();
+
+    if let Some(downstream) = DOWNSTREAM_BUILT_IN_PROVIDERS.get() {
+        for (&id, factory) in downstream
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+        {
+            providers.entry(id.to_string()).or_insert_with(factory);
+        }
+    }
+
+    providers
 }
 
 /// Merge configured providers into the built-in provider catalog.

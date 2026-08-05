@@ -55,6 +55,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 mod action_required_title;
+mod api_key_input_view;
 mod app_link_view;
 mod approval_overlay;
 mod mcp_server_elicitation;
@@ -66,6 +67,7 @@ mod status_surface_preview;
 mod title_setup;
 pub(crate) use action_required_title::ACTION_REQUIRED_PREVIEW_PREFIX;
 pub(crate) use action_required_title::build_action_required_title_text;
+pub(crate) use api_key_input_view::ApiKeyInputView;
 pub(crate) use app_link_view::AppLinkElicitationTarget;
 pub(crate) use app_link_view::AppLinkSuggestionType;
 pub(crate) use app_link_view::AppLinkView;

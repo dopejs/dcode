@@ -144,6 +144,31 @@ pub struct OrchestratorFeatureToml {
     pub enabled: Option<bool>,
 }
 
+/// Controls image handling when the selected primary model is text-only.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum VisionMode {
+    /// Use a configured vision model, falling back to an explicit text-only observation.
+    #[default]
+    Auto,
+    /// Fail the turn if the configured vision model cannot inspect the image.
+    Required,
+    /// Never send images to a secondary model.
+    Disabled,
+}
+
+/// Optional multimodal model used to produce bounded text observations for a text-only model.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct VisionConfigToml {
+    #[serde(default)]
+    pub mode: VisionMode,
+    /// Provider key from the top-level `model_providers` map.
+    pub model_provider: Option<String>,
+    /// Multimodal model slug exposed by `model_provider`.
+    pub model: Option<String>,
+}
+
 /// Base config deserialized from ~/.codex/config.toml.
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, JsonSchema)]
 #[schemars(deny_unknown_fields)]
@@ -155,6 +180,9 @@ pub struct ConfigToml {
 
     /// Provider to use from the model_providers map.
     pub model_provider: Option<String>,
+
+    /// Optional multimodal proxy for image inputs sent to a text-only primary model.
+    pub vision: Option<VisionConfigToml>,
 
     /// Size of the context window for the model, in tokens.
     pub model_context_window: Option<i64>,

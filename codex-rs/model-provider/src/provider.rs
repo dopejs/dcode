@@ -3,6 +3,8 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::OnceLock;
+use std::sync::RwLock;
 
 use codex_api::ApiError;
 use codex_api::Provider;
@@ -27,6 +29,22 @@ use crate::auth::resolve_provider_auth;
 use crate::auth::resolve_provider_auth_for_scope;
 use crate::models_endpoint::OpenAiModelsEndpoint;
 
+/// Provider-reported API billing balance.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct ProviderBalance {
+    pub is_available: bool,
+    pub balance_infos: Vec<ProviderBalanceInfo>,
+}
+
+/// One currency component in a provider billing balance.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
+pub struct ProviderBalanceInfo {
+    pub currency: String,
+    pub total_balance: String,
+    pub granted_balance: String,
+    pub topped_up_balance: String,
+}
+
 /// Remote context-compaction protocols supported by a model provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoteCompactionSupport {
@@ -50,6 +68,8 @@ pub struct ProviderCapabilities {
     pub web_search: bool,
     pub external_web_access: bool,
     pub remote_compaction: RemoteCompactionSupport,
+    pub account_balance: bool,
+    pub api_key_login: bool,
 }
 
 impl Default for ProviderCapabilities {
@@ -60,6 +80,8 @@ impl Default for ProviderCapabilities {
             web_search: true,
             external_web_access: true,
             remote_compaction: RemoteCompactionSupport::V2,
+            account_balance: false,
+            api_key_login: false,
         }
     }
 }
@@ -164,6 +186,27 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
     /// Returns the current app-visible account state for this provider.
     fn account_state(&self) -> ProviderAccountResult;
 
+    /// Fetches provider billing balance when the backend exposes it.
+    fn account_balance(
+        &self,
+        _http_client_factory: codex_http_client::HttpClientFactory,
+    ) -> ModelProviderFuture<'_, codex_protocol::error::Result<Option<ProviderBalance>>> {
+        Box::pin(async { Ok(None) })
+    }
+
+    /// Validates a provider API key before the caller persists it.
+    fn validate_api_key<'a>(
+        &'a self,
+        _api_key: &'a str,
+        _http_client_factory: codex_http_client::HttpClientFactory,
+    ) -> ModelProviderFuture<'a, codex_protocol::error::Result<Option<ProviderBalance>>> {
+        Box::pin(async {
+            Err(CodexErr::UnsupportedOperation(
+                "this provider does not support interactive API key login".to_string(),
+            ))
+        })
+    }
+
     /// Maps an API client error into the provider's user-facing error representation.
     fn map_api_error(&self, error: ApiError) -> CodexErr {
         codex_api::map_api_error(error)
@@ -252,6 +295,41 @@ pub type ModelProviderFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a
 /// Shared runtime model provider handle.
 pub type SharedModelProvider = Arc<dyn ModelProvider>;
 
+/// Factory extension point for provider implementations supplied by a downstream distribution.
+///
+/// Implementations should match only provider metadata they registered themselves,
+/// so similarly named user-defined providers continue using the generic implementation.
+pub trait DownstreamModelProviderFactory: fmt::Debug + Send + Sync {
+    /// A stable identifier used to replace duplicate registrations safely.
+    fn id(&self) -> &'static str;
+
+    /// Returns whether this factory owns the configured provider metadata.
+    fn matches(&self, provider_info: &ModelProviderInfo) -> bool;
+
+    /// Constructs the provider implementation.
+    fn create(
+        &self,
+        provider_info: ModelProviderInfo,
+        auth_manager: Option<Arc<AuthManager>>,
+    ) -> SharedModelProvider;
+}
+
+static DOWNSTREAM_PROVIDER_FACTORIES: OnceLock<
+    RwLock<Vec<Arc<dyn DownstreamModelProviderFactory>>>,
+> = OnceLock::new();
+
+/// Registers a downstream runtime provider factory for this process.
+pub fn register_downstream_model_provider_factory(
+    factory: Arc<dyn DownstreamModelProviderFactory>,
+) {
+    let factories = DOWNSTREAM_PROVIDER_FACTORIES.get_or_init(Default::default);
+    let mut factories = factories
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    factories.retain(|registered| registered.id() != factory.id());
+    factories.push(factory);
+}
+
 fn provider_uses_first_party_auth_path(provider: &ModelProviderInfo) -> bool {
     provider.requires_openai_auth
         && provider.env_key.is_none()
@@ -265,6 +343,17 @@ pub fn create_model_provider(
     provider_info: ModelProviderInfo,
     auth_manager: Option<Arc<AuthManager>>,
 ) -> SharedModelProvider {
+    let downstream_factory = DOWNSTREAM_PROVIDER_FACTORIES.get().and_then(|factories| {
+        factories
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .find(|factory| factory.matches(&provider_info))
+            .cloned()
+    });
+    if let Some(factory) = downstream_factory {
+        return factory.create(provider_info, auth_manager);
+    }
     if provider_info.is_amazon_bedrock() {
         Arc::new(AmazonBedrockModelProvider::new(provider_info, auth_manager))
     } else {

@@ -244,6 +244,7 @@ impl ChatWidget {
             status_line_git_summary_pending: false,
             status_line_git_summary_lookup_complete: false,
             status_line_workspace_headline: None,
+            status_line_provider_balance: None,
             status_line_workspace_headline_pending_request_id: None,
             next_status_line_workspace_headline_request_id: 0,
             status_line_workspace_headline_last_requested_at: None,

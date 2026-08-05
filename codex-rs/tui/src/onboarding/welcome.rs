@@ -1,3 +1,5 @@
+use codex_dcode_product::ProductInfo;
+use codex_dcode_product::current_product;
 use crossterm::event::KeyEvent;
 use crossterm::event::KeyEventKind;
 use ratatui::buffer::Buffer;
@@ -25,6 +27,7 @@ const MIN_ANIMATION_WIDTH: u16 = 60;
 
 pub(crate) struct WelcomeWidget {
     pub is_logged_in: bool,
+    product: &'static ProductInfo,
     animation: AsciiAnimation,
     animations_enabled: bool,
     animations_suppressed: Cell<bool>,
@@ -55,6 +58,7 @@ impl WelcomeWidget {
     ) -> Self {
         Self {
             is_logged_in,
+            product: current_product(),
             animation: AsciiAnimation::new(request_frame),
             animations_enabled,
             animations_suppressed: Cell::new(false),
@@ -94,8 +98,8 @@ impl WidgetRef for &WelcomeWidget {
         lines.push(Line::from(vec![
             "  ".into(),
             "Welcome to ".into(),
-            "Codex".bold(),
-            ", OpenAI's command-line coding agent".into(),
+            self.product.display_name.bold(),
+            format!(", {}", self.product.description).into(),
         ]));
 
         Paragraph::new(lines)
@@ -168,9 +172,30 @@ mod tests {
     }
 
     #[test]
+    fn welcome_renders_dcode_identity() {
+        let mut widget = WelcomeWidget::new(
+            /*is_logged_in*/ false,
+            FrameRequester::test_dummy(),
+            /*animations_enabled*/ false,
+        );
+        widget.product = &codex_dcode_product::DCODE_PRODUCT;
+        let area = Rect::new(0, 0, 80, 2);
+        let mut buf = Buffer::empty(area);
+        (&widget).render_ref(area, &mut buf);
+        let rendered = (0..area.width)
+            .map(|x| buf[(x, 0)].symbol())
+            .collect::<String>()
+            .trim_end()
+            .to_string();
+
+        insta::assert_snapshot!(rendered, @"  Welcome to DCode, DeepSeek-powered command-line coding agent");
+    }
+
+    #[test]
     fn ctrl_dot_changes_animation_variant() {
         let mut widget = WelcomeWidget {
             is_logged_in: false,
+            product: current_product(),
             animation: AsciiAnimation::with_variants(
                 FrameRequester::test_dummy(),
                 &VARIANTS,
@@ -195,6 +220,7 @@ mod tests {
     fn ctrl_shift_dot_changes_animation_variant() {
         let mut widget = WelcomeWidget {
             is_logged_in: false,
+            product: current_product(),
             animation: AsciiAnimation::with_variants(
                 FrameRequester::test_dummy(),
                 &VARIANTS,

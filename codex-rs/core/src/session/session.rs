@@ -1166,6 +1166,7 @@ impl Session {
                         session_configuration.parent_thread_id,
                     ),
                 ),
+                vision_cache: Mutex::new(crate::vision::VisionCache::default()),
                 executed_tool_calls,
                 code_mode_service: crate::tools::code_mode::CodeModeService::new(
                     Arc::clone(&code_mode_session_provider),

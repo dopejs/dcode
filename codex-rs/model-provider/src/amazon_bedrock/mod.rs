@@ -128,6 +128,8 @@ impl ModelProvider for AmazonBedrockModelProvider {
             web_search: true,
             external_web_access: false,
             remote_compaction: RemoteCompactionSupport::V1,
+            account_balance: false,
+            api_key_login: false,
         }
     }
 
@@ -371,6 +373,8 @@ mod tests {
                 web_search: true,
                 external_web_access: false,
                 remote_compaction: RemoteCompactionSupport::V1,
+                account_balance: false,
+                api_key_login: false,
             }
         );
     }

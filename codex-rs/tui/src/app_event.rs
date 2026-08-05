@@ -36,6 +36,7 @@ use codex_app_server_protocol::ThreadItemsListResponse;
 use codex_connectors::AppInfo;
 use codex_file_search::FileMatch;
 use codex_message_history::HistoryBatchCursor;
+use codex_model_provider::ProviderBalance;
 use codex_protocol::ThreadId;
 use codex_protocol::openai_models::ModelPreset;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -175,6 +176,24 @@ pub(crate) enum KeymapEditIntent {
     ReplaceAll,
     AddAlternate,
     ReplaceOne { old_key: String },
+}
+
+pub(crate) struct SensitiveApiKey(String);
+
+impl SensitiveApiKey {
+    pub(crate) fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    pub(crate) fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+impl std::fmt::Debug for SensitiveApiKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("SensitiveApiKey(***)")
+    }
 }
 
 /// Number of key strokes recorded by one `/keymap` capture.
@@ -329,6 +348,17 @@ pub(crate) enum AppEvent {
 
     /// Request app-server account logout, then exit after it succeeds.
     Logout,
+
+    /// Validate and persist an API key without exposing it in event debug output.
+    ProviderApiKeyLogin {
+        api_key: SensitiveApiKey,
+    },
+
+    /// Result of a provider API key login initiated from the TUI.
+    ProviderApiKeyLoginFinished {
+        provider_name: String,
+        result: Result<ProviderBalance, String>,
+    },
 
     /// Request to exit the application due to a fatal error.
     #[allow(dead_code)]
@@ -1091,6 +1121,11 @@ pub(crate) enum AppEvent {
     StatusLineWorkspaceHeadlineUpdated {
         request_id: u64,
         result: Result<crate::workspace_messages::WorkspaceHeadlineFetchResult, String>,
+    },
+    /// Async update of provider billing balance for status-line rendering.
+    ProviderBalanceUpdated {
+        request_id: u64,
+        result: Result<ProviderBalance, String>,
     },
     /// Apply a user-confirmed status-line item ordering/selection.
     StatusLineSetup {

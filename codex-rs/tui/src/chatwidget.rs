@@ -77,7 +77,7 @@ use crate::terminal_title::set_terminal_title;
 use crate::text_formatting::proper_join;
 use crate::token_usage::TokenUsage;
 use crate::token_usage::TokenUsageInfo;
-use crate::version::CODEX_CLI_VERSION;
+use crate::version::cli_version;
 use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
 use codex_app_server_protocol::AppSummary;
@@ -379,6 +379,7 @@ use self::skills::find_skill_mentions_with_tool_mentions;
 use self::skills::is_app_mentionable;
 mod plugin_catalog;
 mod plugins;
+mod provider_login;
 use self::plugins::PluginInstallAuthFlowState;
 use self::plugins::PluginListFetchState;
 use self::plugins::PluginsCacheState;
@@ -755,6 +756,7 @@ pub(crate) struct ChatWidget {
     status_line_git_summary_lookup_complete: bool,
     // Cached workspace notification headline for the status line.
     status_line_workspace_headline: Option<String>,
+    status_line_provider_balance: Option<codex_model_provider::ProviderBalance>,
     // Request ID for the async workspace headline fetch currently in flight.
     status_line_workspace_headline_pending_request_id: Option<u64>,
     // Request ID to assign to the next workspace headline fetch.
@@ -1451,7 +1453,7 @@ impl ChatWidget {
                 /*reasoning_effort*/ None,
                 /*show_fast_status*/ false,
                 config.cwd.to_path_buf(),
-                CODEX_CLI_VERSION,
+                cli_version(),
             )
             .with_yolo_mode(history_cell::is_yolo_mode(config)),
         )

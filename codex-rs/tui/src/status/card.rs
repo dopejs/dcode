@@ -7,7 +7,7 @@ use crate::legacy_core::config::Config;
 use crate::line_truncation::line_width;
 use crate::token_usage::TokenUsage;
 use crate::token_usage::TokenUsageInfo;
-use crate::version::CODEX_CLI_VERSION;
+use crate::version::cli_version;
 use crate::width::display_width;
 use chrono::DateTime;
 use chrono::Local;
@@ -705,12 +705,13 @@ fn status_approval_label(
 
 impl HistoryCell for StatusHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
+        let product = codex_dcode_product::current_product();
         let mut lines: Vec<Line<'static>> = Vec::new();
         lines.push(Line::from(vec![
             Span::from(format!("{}>_ ", FieldFormatter::INDENT)).dim(),
-            Span::from("OpenAI Codex").bold(),
+            Span::from(product.long_name).bold(),
             Span::from(" ").dim(),
-            Span::from(format!("(v{CODEX_CLI_VERSION})")).dim(),
+            Span::from(format!("(v{})", cli_version())).dim(),
         ]));
 
         let available_inner_width = usize::from(width.saturating_sub(4));
@@ -726,7 +727,10 @@ impl HistoryCell for StatusHistoryCell {
                 (None, None) => "ChatGPT".to_string(),
             },
             StatusAccountDisplay::ApiKey => {
-                "API key configured (run codex login to use ChatGPT)".to_string()
+                format!(
+                    "API key configured (run {} login to change accounts)",
+                    product.cli_name
+                )
             }
         });
 

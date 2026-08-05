@@ -643,6 +643,9 @@ pub struct Config {
     /// Info needed to make an API request to the model.
     pub model_provider: ModelProviderInfo,
 
+    /// Optional multimodal proxy used when the primary model cannot inspect images.
+    pub vision: Option<codex_config::config_toml::VisionConfigToml>,
+
     /// Optionally specify the personality of the model
     pub personality: Option<Personality>,
 
@@ -3687,7 +3690,11 @@ impl Config {
 
         let model_provider_id = model_provider
             .or(cfg.model_provider)
-            .unwrap_or_else(|| "openai".to_string());
+            .unwrap_or_else(|| {
+                codex_dcode_product::current_product()
+                    .default_model_provider
+                    .to_string()
+            });
         let model_provider = model_providers
             .get(&model_provider_id)
             .ok_or_else(|| {
@@ -3699,6 +3706,30 @@ impl Config {
                 std::io::Error::new(std::io::ErrorKind::NotFound, message)
             })?
             .clone();
+
+        let vision = cfg.vision.clone();
+        if let Some(vision) = vision.as_ref()
+            && vision.mode != codex_config::config_toml::VisionMode::Disabled
+        {
+            let vision_provider_id = vision.model_provider.as_deref().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "vision.model_provider is required unless vision.mode is disabled",
+                )
+            })?;
+            if !model_providers.contains_key(vision_provider_id) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("Vision model provider `{vision_provider_id}` not found"),
+                ));
+            }
+            if vision.model.as_deref().is_none_or(str::is_empty) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "vision.model is required unless vision.mode is disabled",
+                ));
+            }
+        }
 
         let shell_environment_policy = cfg.shell_environment_policy.into();
         let allow_login_shell = cfg.allow_login_shell.unwrap_or(true);
@@ -3822,7 +3853,11 @@ impl Config {
 
         let forced_login_method = cfg.forced_login_method;
 
-        let model = model.or(cfg.model);
+        let model = model.or(cfg.model).or_else(|| {
+            codex_dcode_product::current_product()
+                .default_model
+                .map(str::to_string)
+        });
         let notices = cfg.notice.unwrap_or_default();
         let service_tier = match service_tier_override {
             Some(Some(service_tier)) => Some(service_tier),
@@ -4047,6 +4082,7 @@ impl Config {
                 .unwrap_or_default(),
             model_provider_id,
             model_provider,
+            vision,
             cwd: resolved_cwd,
             workspace_roots: workspace_roots.clone(),
             workspace_roots_explicit,

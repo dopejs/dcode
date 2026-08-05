@@ -23,12 +23,15 @@ impl HistoryCell for UpdateAvailableHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         use ratatui_macros::line;
         use ratatui_macros::text;
+        let product = codex_dcode_product::current_product();
+        let repository_url = format!("https://github.com/{}", product.github_repository);
+        let release_url = format!("{repository_url}/releases/latest");
         let update_instruction = if let Some(update_action) = self.update_action {
             line!["Run ", update_action.command_str().cyan(), " to update."]
         } else {
             line![
                 "See ",
-                "https://github.com/openai/codex".cyan().underlined(),
+                repository_url.cyan().underlined(),
                 " for installation options."
             ]
         };
@@ -38,14 +41,12 @@ impl HistoryCell for UpdateAvailableHistoryCell {
                 "✨\u{200A}".bold().cyan(),
                 "Update available!".bold().cyan(),
                 " ",
-                format!("{CODEX_CLI_VERSION} -> {}", self.latest_version).bold(),
+                format!("{} -> {}", cli_version(), self.latest_version).bold(),
             ],
             update_instruction,
             "",
             "See full release notes:",
-            "https://github.com/openai/codex/releases/latest"
-                .cyan()
-                .underlined(),
+            release_url.cyan().underlined(),
         ];
 
         let inner_width = content
@@ -57,18 +58,20 @@ impl HistoryCell for UpdateAvailableHistoryCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
+        let product = codex_dcode_product::current_product();
+        let repository_url = format!("https://github.com/{}", product.github_repository);
         let update_instruction = if let Some(update_action) = self.update_action {
             format!("Run {} to update.", update_action.command_str())
         } else {
-            "See https://github.com/openai/codex for installation options.".to_string()
+            format!("See {repository_url} for installation options.")
         };
         vec![
             Line::from("Update available!"),
-            Line::from(format!("{CODEX_CLI_VERSION} -> {}", self.latest_version)),
+            Line::from(format!("{} -> {}", cli_version(), self.latest_version)),
             Line::from(update_instruction),
             Line::from(""),
             Line::from("See full release notes:"),
-            Line::from("https://github.com/openai/codex/releases/latest"),
+            Line::from(format!("{repository_url}/releases/latest")),
         ]
     }
 

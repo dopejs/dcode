@@ -12,10 +12,10 @@ use codex_chatgpt::apply_command::ApplyCommand;
 use codex_chatgpt::apply_command::run_apply_command;
 use codex_cli::read_access_token_from_stdin;
 use codex_cli::read_api_key_from_stdin;
+use codex_cli::run_login;
 use codex_cli::run_login_status;
 use codex_cli::run_login_with_access_token;
 use codex_cli::run_login_with_api_key;
-use codex_cli::run_login_with_chatgpt;
 use codex_cli::run_login_with_device_code;
 use codex_cli::run_logout;
 use codex_cloud_tasks::Cli as CloudTasksCli;
@@ -988,6 +988,9 @@ async fn cli_main(
     arg0_paths: Arg0DispatchPaths,
     remote_control_disabled: bool,
 ) -> anyhow::Result<()> {
+    if *codex_dcode_product::current_product() == codex_dcode_product::DCODE_PRODUCT {
+        codex_dcode_deepseek::register();
+    }
     let MultitoolCli {
         psp,
         config_overrides: mut root_config_overrides,
@@ -995,7 +998,7 @@ async fn cli_main(
         remote,
         mut interactive,
         subcommand,
-    } = MultitoolCli::parse();
+    } = parse_multitool_cli();
     interactive.psp = psp;
 
     // Fold --enable/--disable into config overrides so they flow to all subcommands.
@@ -1418,7 +1421,7 @@ async fn cli_main(
                         let access_token = read_access_token_from_stdin();
                         run_login_with_access_token(login_cli.config_overrides, access_token).await;
                     } else {
-                        run_login_with_chatgpt(login_cli.config_overrides).await;
+                        run_login(login_cli.config_overrides).await;
                     }
                 }
             }
@@ -1692,6 +1695,24 @@ async fn cli_main(
     }
 
     Ok(())
+}
+
+fn parse_multitool_cli() -> MultitoolCli {
+    let command = multitool_command_for_product(codex_dcode_product::current_product());
+    let matches = command.get_matches();
+    <MultitoolCli as clap::FromArgMatches>::from_arg_matches(&matches)
+        .unwrap_or_else(|err| err.exit())
+}
+
+fn multitool_command_for_product(product: &codex_dcode_product::ProductInfo) -> clap::Command {
+    MultitoolCli::command()
+        .name(product.cli_name)
+        .bin_name(product.cli_name)
+        .version(product.version)
+        .override_usage(format!(
+            "{} [OPTIONS] [PROMPT]\n       {} [OPTIONS] <COMMAND> [ARGS]",
+            product.cli_name, product.cli_name
+        ))
 }
 
 fn profile_v2_for_subcommand<'a>(
@@ -3188,6 +3209,19 @@ mod tests {
             command
                 .get_subcommands()
                 .all(|subcommand| subcommand.get_name() != "responses")
+        );
+    }
+
+    #[test]
+    fn dcode_product_controls_root_command_identity() {
+        let err = multitool_command_for_product(&codex_dcode_product::DCODE_PRODUCT)
+            .try_get_matches_from(["dcode", "--version"])
+            .expect_err("version should short-circuit");
+
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
+        assert_eq!(
+            err.to_string(),
+            format!("dcode {}\n", codex_dcode_product::DCODE_VERSION)
         );
     }
 

@@ -1,2 +1,4 @@
-/// The current Codex CLI version as embedded at compile time.
-pub const CODEX_CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// The user-visible version for the active distribution.
+pub fn cli_version() -> &'static str {
+    codex_dcode_product::current_product().version
+}
