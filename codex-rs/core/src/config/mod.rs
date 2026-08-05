@@ -4251,12 +4251,17 @@ impl Config {
             notices,
             check_for_update_on_startup,
             disable_paste_burst: cfg.disable_paste_burst.unwrap_or(false),
-            analytics_enabled: cfg.analytics.as_ref().and_then(|a| a.enabled),
+            analytics_enabled: cfg.analytics.as_ref().and_then(|a| a.enabled).or_else(|| {
+                (!codex_dcode_product::current_product().automatic_openai_services_enabled)
+                    .then_some(false)
+            }),
             feedback_enabled: cfg
                 .feedback
                 .as_ref()
                 .and_then(|feedback| feedback.enabled)
-                .unwrap_or(true),
+                .unwrap_or(
+                    codex_dcode_product::current_product().automatic_openai_services_enabled,
+                ),
             tool_suggest,
             tui_notifications: cfg
                 .tui

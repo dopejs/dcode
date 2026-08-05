@@ -66,6 +66,10 @@ pub async fn cloud_config_bundle_loader_for_storage(
     chatgpt_base_url: String,
     auth_route_config: AuthRouteConfig,
 ) -> CloudConfigBundleLoader {
+    if !codex_dcode_product::current_product().automatic_openai_services_enabled {
+        return CloudConfigBundleLoader::default();
+    }
+
     let http_client_factory = auth_route_config.http_client_factory().clone();
     let auth_manager = AuthManager::shared(
         codex_home.clone(),

@@ -19,6 +19,7 @@ pub struct ProductInfo {
     pub default_model: Option<&'static str>,
     pub github_repository: &'static str,
     pub version: &'static str,
+    pub automatic_openai_services_enabled: bool,
 }
 
 /// DCode release version, intentionally independent from upstream workspace versions.
@@ -35,6 +36,7 @@ pub const CODEX_PRODUCT: ProductInfo = ProductInfo {
     default_model: None,
     github_repository: "openai/codex",
     version: env!("CARGO_PKG_VERSION"),
+    automatic_openai_services_enabled: true,
 };
 
 pub const DCODE_PRODUCT: ProductInfo = ProductInfo {
@@ -48,6 +50,7 @@ pub const DCODE_PRODUCT: ProductInfo = ProductInfo {
     default_model: Some("deepseek-v4-flash"),
     github_repository: "dopejs/dcode",
     version: DCODE_VERSION,
+    automatic_openai_services_enabled: false,
 };
 
 static CURRENT_PRODUCT: OnceLock<ProductInfo> = OnceLock::new();

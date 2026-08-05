@@ -590,7 +590,10 @@ impl PluginsManager {
         config: &PluginsConfigInput,
         on_effective_plugins_changed: Option<EffectivePluginsChangedCallback>,
     ) {
-        if config.plugins_enabled && !self.remote_global_catalog_active(config) {
+        if codex_dcode_product::current_product().automatic_openai_services_enabled
+            && config.plugins_enabled
+            && !self.remote_global_catalog_active(config)
+        {
             self.start_curated_repo_sync(
                 config.http_client_factory.clone(),
                 on_effective_plugins_changed,

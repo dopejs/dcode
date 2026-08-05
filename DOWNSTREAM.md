@@ -18,6 +18,11 @@ The downstream code is split into these boundaries:
 Internal crate names remain `codex-*`. User-visible identity is selected at
 runtime, so an upstream `codex` build retains its original behavior.
 
+DCode also disables automatic OpenAI services at the product boundary. This
+turns off analytics, feedback, curated plugin repository synchronization, and
+cloud configuration loading by default without removing explicit provider
+configuration or changing the behavior of the upstream `codex` binary.
+
 ## Syncing upstream
 
 Keep DCode changes as a short commit stack on top of `upstream/main`. To inspect
