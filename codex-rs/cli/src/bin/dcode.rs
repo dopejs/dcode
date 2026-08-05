@@ -22,7 +22,10 @@ fn main() -> std::io::Result<()> {
 }
 
 fn sibling_codex_executable() -> std::io::Result<PathBuf> {
-    let current_executable = std::env::current_exe()?;
+    // Installers expose `dcode` through a symlink while keeping the real
+    // `codex` executable beside the shim in the versioned package directory.
+    // Resolve that symlink before looking for the sibling executable.
+    let current_executable = std::env::current_exe()?.canonicalize()?;
     let executable_name = if cfg!(windows) { "codex.exe" } else { "codex" };
     Ok(current_executable.with_file_name(executable_name))
 }
