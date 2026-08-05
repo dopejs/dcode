@@ -23,7 +23,7 @@ pub struct ProductInfo {
 }
 
 /// DCode release version, intentionally independent from upstream workspace versions.
-pub const DCODE_VERSION: &str = "0.2.1";
+pub const DCODE_VERSION: &str = "0.2.2";
 
 pub const CODEX_PRODUCT: ProductInfo = ProductInfo {
     display_name: "Codex",
