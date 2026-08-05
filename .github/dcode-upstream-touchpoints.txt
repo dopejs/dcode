@@ -75,6 +75,7 @@ codex-rs/tui/src/tui.rs
 codex-rs/tui/src/tui/event_stream.rs
 codex-rs/tui/src/tui/screen_size.rs
 codex-rs/tui/src/update_action.rs
+codex-rs/tui/src/update_prompt.rs
 codex-rs/tui/src/updates.rs
 codex-rs/tui/src/version.rs
 codex-rs/utils/home-dir/BUILD.bazel
