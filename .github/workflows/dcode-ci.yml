@@ -32,6 +32,10 @@ jobs:
         run: python3 -m unittest discover -s scripts/codex_package -t scripts -p 'test_*.py'
       - name: Test standalone installer
         run: python3 -m unittest discover -s scripts/install -p 'test_*.py'
+      - name: Install uv for Python formatting
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.3"
       - name: Check formatting
         run: just fmt-check
       - name: Check for a clean worktree
