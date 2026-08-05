@@ -65,7 +65,7 @@ jobs:
           target: x86_64-unknown-linux-gnu
       - name: Check CLI and TUI
         working-directory: codex-rs
-        run: cargo check --locked -p codex-cli -p codex-tui
+        run: cargo check --locked --release -p codex-cli -p codex-tui
       - name: Test DCode product identity
         working-directory: codex-rs
         run: just test -p codex-dcode-product
